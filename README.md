@@ -1,49 +1,82 @@
 # IntakeFlow
 
-IntakeFlow is a configurable request intake and approval application. Administrators build and publish forms, requesters complete and submit them, and reviewers approve or reject the submitted requests.
+IntakeFlow is a configurable request intake and approval application. It allows a team to create reusable forms, collect structured requests, review submissions, and retain a complete history of every decision.
 
-This guide explains how to run the project locally, manage its database, test it, deploy it, and understand its architecture. It assumes no previous experience with this repository.
+The application supports three roles:
+
+- **Administrator** creates, publishes, and archives forms.
+- **Requester** completes forms and tracks submitted requests.
+- **Reviewer** reviews submitted requests and approves or rejects them.
 
 ## Contents
 
-- [Application features](#application-features)
+- [Application workflow](#application-workflow)
+- [Main features](#main-features)
 - [Technology](#technology)
-- [Quick local setup with Docker](#quick-local-setup-with-docker)
-- [Local sample accounts and data](#local-sample-accounts-and-data)
-- [Developer setup](#developer-setup)
-- [Database setup and migrations](#database-setup-and-migrations)
-- [Running tests](#running-tests)
+- [Run locally with Docker](#run-locally-with-docker)
+- [Local login accounts and sample data](#local-login-accounts-and-sample-data)
+- [Suggested local test flow](#suggested-local-test-flow)
+- [How Docker works in this project](#how-docker-works-in-this-project)
+- [How the database works](#how-the-database-works)
 - [Deployed application](#deployed-application)
-- [Deploying your own copy](#deploying-your-own-copy)
 - [Architecture](#architecture)
 - [Key design decisions](#key-design-decisions)
 - [Troubleshooting](#troubleshooting)
 
-## Application features
+## Application workflow
+
+~~~text
+Administrator
+    |
+    | creates and publishes a form
+    v
+Requester
+    |
+    | saves a draft and submits the completed request
+    v
+Reviewer
+    |
+    | approves
+    +------------------------------> APPROVED
+    |
+    | rejects with a comment
+    v
+REJECTED
+    |
+    | requester edits and resubmits
+    v
+SUBMITTED
+~~~
+
+The backend controls every workflow transition. The interface displays only the actions available to the signed-in role, while the API independently verifies authorization and request state.
+
+## Main features
 
 ### Administrator
 
-- Creates forms without changing code
-- Adds text, number, date, and dropdown fields
-- Marks fields as required or optional
-- Reorders fields and previews the form
-- Saves, edits, publishes, and archives forms
+- Create forms using text, number, date, and dropdown fields
+- Mark fields as required or optional
+- Reorder fields and view the form preview
+- Save and edit draft forms
+- Publish forms for requesters
+- Archive forms that should no longer accept new requests
 
 ### Requester
 
-- Sees published forms
-- Saves incomplete requests as drafts
-- Submits completed requests
-- Views request status and activity history
-- Corrects and resubmits rejected requests
+- View available published forms
+- Save incomplete requests as drafts
+- Edit and submit completed requests
+- View request status and activity history
+- Correct and resubmit rejected requests
 
 ### Reviewer
 
-- Sees submitted requests in a review queue
-- Searches and filters the queue
-- Approves valid requests
-- Rejects requests with a required explanation
-- Views the complete decision history
+- View submitted requests in a review queue
+- Search and filter requests
+- Inspect all submitted answers
+- Approve requests
+- Reject requests with a required comment
+- View the complete decision history
 
 ## Technology
 
@@ -51,65 +84,106 @@ This guide explains how to run the project locally, manage its database, test it
 | --- | --- |
 | Frontend | Angular 22.1, TypeScript, RxJS |
 | Backend | Spring Boot 4.1.1, Java 25 |
-| Security | Spring Security, JWT, BCrypt |
+| Authentication | Spring Security and JWT |
+| Password storage | BCrypt |
 | Database | MySQL 8.4 |
-| Migrations | Flyway |
-| Packaging | Multi-stage Docker image |
-| Production hosting | Render |
-| Production database | Aiven MySQL |
+| Database migrations | Flyway |
+| Local runtime | Docker Compose |
+| Production application hosting | Render |
+| Production database hosting | Aiven |
 
-## Quick local setup with Docker
+## Run locally with Docker
 
-This is the recommended option for a beginner. Docker starts MySQL and the complete application.
+Docker is the only required local dependency. Java, Node.js, npm, Maven, and MySQL do not need to be installed separately.
 
-### 1. Install Docker
+### 1. Install and start Docker
 
-Install Docker Desktop from https://www.docker.com/products/docker-desktop/ and wait until it reports that Docker is running.
+Install Docker Desktop:
 
-Linux users can install Docker Engine and the Docker Compose plugin instead.
+https://www.docker.com/products/docker-desktop/
 
-### 2. Download the project
+Open Docker Desktop and wait until Docker reports that it is running.
 
-If Git is installed:
+### 2. Download the repository
+
+Using Git:
 
 ~~~powershell
 git clone https://github.com/venkat-kalyan-au7/IntakeFlow-Assignment.git
 cd IntakeFlow-Assignment
 ~~~
 
-You can also download the repository as a ZIP from GitHub, extract it, and open a terminal in the extracted folder.
+Alternatively, download the repository ZIP from GitHub, extract it, and open a terminal in the extracted project folder.
+
+The terminal must be at the repository root, where these files are located:
+
+~~~text
+compose.yaml
+Dockerfile
+backend/
+frontend/
+~~~
 
 ### 3. Start the application
-
-Run this from the repository root, where compose.yaml is located:
 
 ~~~powershell
 docker compose up --build
 ~~~
 
-The first run takes longer because Docker downloads the required images and builds the application. Wait until the logs say that IntakeFlow has started.
+During the first run, Docker downloads the required base images and builds the application. This can take several minutes depending on the network connection.
 
-Open:
+Docker then:
 
-- Application: http://localhost:8080
-- Health check: http://localhost:8080/actuator/health
-- Local API documentation: http://localhost:8080/api-docs
+1. Starts MySQL.
+2. Waits for the MySQL health check to pass.
+3. Starts the IntakeFlow application.
+4. Connects the application to MySQL.
+5. Applies the database migration.
+6. Loads the local sample accounts and data.
 
-### 4. Stop the application
+Wait until the application logs report that IntakeFlow has started.
 
-Press Ctrl+C in the terminal and then run:
+### 4. Open the application
+
+Application:
+
+http://localhost:8080
+
+Health endpoint:
+
+http://localhost:8080/actuator/health
+
+A successful health response contains:
+
+~~~json
+{"status":"UP"}
+~~~
+
+### 5. Stop the application
+
+Press Ctrl+C in the terminal running Docker Compose, then run:
 
 ~~~powershell
 docker compose down
 ~~~
 
-The database is kept in a Docker volume, so your local data remains available the next time you start the application.
+This stops and removes the containers but keeps the local database data.
 
-## Local sample accounts and data
+### 6. Start it again
 
-Docker Compose enables local demo data. All local accounts use this password:
+~~~powershell
+docker compose up
+~~~
 
-    IntakeFlow@2026
+The existing Docker images and stored database are reused, so later starts are normally faster.
+
+## Local login accounts and sample data
+
+All local accounts use the password:
+
+~~~text
+IntakeFlow@2026
+~~~
 
 | Role | Email |
 | --- | --- |
@@ -117,257 +191,212 @@ Docker Compose enables local demo data. All local accounts use this password:
 | Requester | requester@intakeflow.demo |
 | Reviewer | reviewer@intakeflow.demo |
 
-The local seed also includes a published vendor onboarding form and requests in submitted, approved, and rejected states.
+The local database also contains:
 
-These accounts and records are for local development only. They are disabled in the deployed production application.
+- A published vendor onboarding form
+- A submitted request waiting for review
+- An approved request
+- A rejected request that can be corrected and resubmitted
 
-## Developer setup
+The local sample accounts and records exist only because compose.yaml enables demo mode. They are not enabled in the deployed application.
 
-Use this option while changing code. MySQL runs in Docker, while Spring Boot and Angular run directly on your computer.
+## Suggested local test flow
 
-### Prerequisites
+### 1. Administrator flow
 
-Install:
+1. Sign in with the Administrator account.
+2. Open **Form Studio**.
+3. Create a form.
+4. Add text, number, date, and dropdown fields.
+5. Mark selected fields as required.
+6. Save the form as a draft.
+7. Reopen and edit it.
+8. Publish the form.
 
-- Docker Desktop
-- Java Development Kit 25
-- Node.js 24 LTS with npm
+Expected result: the published form becomes available to the Requester.
 
-Confirm each installation:
+### 2. Requester flow
 
-~~~powershell
-docker --version
-java --version
-node --version
-npm --version
-~~~
+1. Sign out and sign in with the Requester account.
+2. Open **Requests**.
+3. Select the form published by the Administrator.
+4. Enter part of the information and save it as a draft.
+5. Reopen the draft and confirm that the entered values were retained.
+6. Complete all required fields.
+7. Submit the request.
+8. Note the generated reference number.
 
-### 1. Start only MySQL
+Expected result: the status changes to **Submitted** and the request becomes visible to the Reviewer.
 
-From the repository root:
+### 3. Reviewer approval flow
 
-~~~powershell
-docker compose up -d database
-~~~
+1. Sign out and sign in with the Reviewer account.
+2. Open **Review Queue**.
+3. Search for the request by its reference number or form name.
+4. Open the request and inspect its answers.
+5. Approve it.
 
-Local database connection:
+Expected result: the status changes to **Approved**, and the approval appears in the activity history.
 
-| Setting | Value |
+### 4. Rejection and resubmission flow
+
+1. Sign in as the Requester and submit another request.
+2. Sign in as the Reviewer.
+3. Reject the request with a meaningful comment.
+4. Sign back in as the Requester.
+5. Open the rejected request and review the comment.
+6. Correct the requested information.
+7. Resubmit the request.
+8. Sign in as the Reviewer and approve the corrected request.
+
+Expected result: the activity history shows submission, rejection, editing, resubmission, and approval.
+
+### 5. Archive flow
+
+1. Sign in as the Administrator.
+2. Open **Form Studio**.
+3. Archive the test form.
+
+Expected result: the form is no longer available for new requests. Existing submissions and their recorded form version remain accessible.
+
+## How Docker works in this project
+
+The local environment is defined in compose.yaml and contains two services.
+
+### Database service
+
+The **database** service:
+
+- Runs MySQL 8.4
+- Creates the intakeflow database
+- Creates the local intakeflow database user
+- Exposes MySQL on port 3306
+- Stores data in a persistent Docker volume
+- Reports its readiness through a MySQL health check
+
+### Application service
+
+The **application** service:
+
+- Builds the root Dockerfile
+- Waits until the database is healthy
+- Connects to MySQL using Docker's internal network
+- Runs Spring Boot on port 8080
+- Serves both the Angular interface and REST API
+- Enables local sample data
+
+### Docker image build
+
+The Dockerfile uses multiple build stages:
+
+1. A Node.js stage installs frontend dependencies and builds Angular.
+2. A Java development stage compiles and packages Spring Boot.
+3. The Angular output is copied into Spring Boot's static resources.
+4. A smaller Java runtime image runs the completed application.
+
+Only the final runtime image is used after the build. Node.js, Angular CLI, and the Java compiler are not included in the running container.
+
+### Local ports
+
+| Port | Purpose |
 | --- | --- |
-| Host | localhost |
-| Port | 3306 |
-| Database | intakeflow |
-| Username | intakeflow |
-| Password | intakeflow |
+| 8080 | IntakeFlow web application and API |
+| 3306 | Local MySQL database |
 
-These credentials are only for the local Docker database.
+### Persistent local data
 
-### 2. Start the backend
+The MySQL files are stored in the intakeflow_data Docker volume. Stopping the containers does not delete this volume.
 
-Open a new terminal.
-
-Windows:
-
-~~~powershell
-cd backend
-.\mvnw.cmd spring-boot:run
-~~~
-
-macOS or Linux:
-
-~~~bash
-cd backend
-chmod +x mvnw
-./mvnw spring-boot:run
-~~~
-
-The backend runs at http://localhost:8080. It connects to the local MySQL container using the default development settings. Flyway applies pending migrations automatically.
-
-### 3. Start the frontend
-
-Open another terminal:
-
-~~~powershell
-cd frontend
-npm ci
-npm start
-~~~
-
-Open http://localhost:4200. The Angular server forwards API requests to http://localhost:8080 using frontend/proxy.conf.json.
-
-### 4. Enable sample data for direct backend development
-
-Docker Compose enables sample data automatically. When starting Spring Boot directly, set APP_DEMO_MODE first.
-
-Windows PowerShell:
-
-~~~powershell
-$env:APP_DEMO_MODE="true"
-.\mvnw.cmd spring-boot:run
-~~~
-
-macOS or Linux:
-
-~~~bash
-export APP_DEMO_MODE=true
-./mvnw spring-boot:run
-~~~
-
-Never enable APP_DEMO_MODE in production.
-
-## Database setup and migrations
-
-### Local database creation
-
-The database service in compose.yaml creates:
-
-- A database named intakeflow
-- A user named intakeflow
-- A persistent volume named intakeflow_data
-
-The application waits for the MySQL health check before it starts.
-
-### How migrations work
-
-Flyway owns the schema. Migration files are stored in:
-
-    backend/src/main/resources/db/migration
-
-The initial migration is:
-
-    V1__initial_schema.sql
-
-At every backend startup, Flyway:
-
-1. Connects to MySQL.
-2. Reads the flyway_schema_history table.
-3. Checks which migrations were already applied.
-4. Applies only new migrations in version order.
-5. Stops startup if validation or migration fails.
-
-Hibernate uses ddl-auto=validate. It checks that the Java entities match the migrated schema, but it does not create or silently modify tables.
-
-### Adding a migration
-
-Never change a migration that has already run on a shared database. Add a new file using the next version:
-
-    V2__add_submission_priority.sql
-
-Use one version number, two underscores, and a clear description. Restart the backend to apply it.
-
-### Viewing migration logs
-
-~~~powershell
-docker compose logs application
-~~~
-
-Successful startup contains messages similar to:
-
-    Successfully validated 1 migration
-    Successfully applied 1 migration
-
-### Resetting the local database
-
-The following command permanently deletes all local IntakeFlow records and rebuilds a new database:
+To delete all local data and recreate a clean environment:
 
 ~~~powershell
 docker compose down -v
 docker compose up --build
 ~~~
 
-The -v option deletes only the local Docker volume. It does not affect the deployed Aiven database.
+The -v option permanently deletes only the local Docker database. It does not affect the deployed Aiven database.
 
-### Using a separately installed MySQL server
+## How the database works
 
-Create a database and user in MySQL 8.4:
+MySQL stores the application's users, form definitions, published form versions, fields, dropdown options, submissions, answers, and workflow history.
 
-~~~sql
-CREATE DATABASE intakeflow CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER 'intakeflow'@'localhost' IDENTIFIED BY 'choose-a-local-password';
-GRANT ALL PRIVILEGES ON intakeflow.* TO 'intakeflow'@'localhost';
-FLUSH PRIVILEGES;
+### Main data model
+
+- **AppUser** stores authentication identity and role.
+- **FormDefinition** provides the stable identity of a form.
+- **FormVersion** stores a draft or published snapshot.
+- **FormField** stores the field type, label, description, order, and required setting.
+- **FieldOption** stores ordered dropdown choices.
+- **Submission** stores the requester, form version, status, and reference number.
+- **SubmissionAnswer** stores an answer for a specific versioned field.
+- **WorkflowEvent** stores the audit history for each state change.
+
+### Database migration
+
+Flyway manages the database schema. The migration is located at:
+
+~~~text
+backend/src/main/resources/db/migration/V1__initial_schema.sql
 ~~~
 
-Set the connection values before starting Spring Boot.
+When the application starts:
 
-Windows PowerShell:
+1. Flyway connects to MySQL.
+2. It checks the flyway_schema_history table.
+3. It validates the known migrations.
+4. It applies any migration that has not already run.
+5. Spring Boot continues only after migration succeeds.
 
-~~~powershell
-$env:SPRING_DATASOURCE_URL="jdbc:mysql://localhost:3306/intakeflow?serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false"
-$env:SPRING_DATASOURCE_USERNAME="intakeflow"
-$env:SPRING_DATASOURCE_PASSWORD="choose-a-local-password"
-$env:JWT_SECRET="local-development-secret-change-before-production-32chars"
-.\mvnw.cmd spring-boot:run
-~~~
+No manual SQL setup is required when the application is started with Docker Compose.
 
-Do not commit real passwords to .env.example, compose.yaml, application.yml, or Git.
+Hibernate is configured with ddl-auto=validate. It verifies that the Java entities match the migrated tables, but it does not create or modify the production schema.
 
-## Running tests
+### Form versioning
 
-### Backend
+Published forms are immutable. Editing a published form creates a new version instead of changing the existing version.
 
-Windows:
+Each submission points to the exact published version that the requester completed. This ensures that historical submissions remain accurate even after the form is changed later.
 
-~~~powershell
-cd backend
-.\mvnw.cmd test
-~~~
+### Workflow history
 
-macOS or Linux:
+Every important transition creates a WorkflowEvent. This records actions such as:
 
-~~~bash
-cd backend
-./mvnw test
-~~~
+- Submitted
+- Approved
+- Rejected
+- Resubmitted
 
-### Frontend
-
-~~~powershell
-cd frontend
-npm ci
-npm test -- --watch=false
-npm run build
-~~~
-
-### Production image
-
-From the repository root:
-
-~~~powershell
-docker build -t intakeflow:local .
-~~~
-
-### Full role and workflow test
-
-First start the local Docker application:
-
-~~~powershell
-docker compose up --build
-~~~
-
-In a second terminal:
-
-~~~powershell
-node scripts/test-role-workflows.mjs
-~~~
-
-This script tests authentication, authorization, form CRUD, publishing, drafts, validation edge cases, submission, approval, rejection, resubmission, search, pagination, archiving, and all role dashboards. It creates temporary records and archives the forms it creates.
+The event includes the actor, previous status, new status, time, and review comment when applicable.
 
 ## Deployed application
 
-The current deployment is available at:
+The deployed application is available at:
 
 https://intakeflow.onrender.com
 
-| Component | Provider |
-| --- | --- |
-| Web application and API | Render Web Service |
-| MySQL 8.4 database | Aiven |
-| Source repository | GitHub |
+### Production hosting
+
+| Component | Platform | Responsibility |
+| --- | --- | --- |
+| Source code | GitHub | Stores the reviewed application source |
+| Application | Render | Builds and runs the Docker image |
+| Database | Aiven MySQL 8.4 | Stores production application data |
+
+### How the deployed version works
+
+1. Render builds the same root Dockerfile used for local packaging.
+2. Angular is compiled into static files.
+3. Spring Boot and the Angular files are packaged into one Docker image.
+4. Render runs the image as one web service.
+5. Spring Boot connects to Aiven MySQL through a TLS-encrypted JDBC connection.
+6. Flyway validates and applies database migrations during startup.
+7. Render checks the readiness endpoint before marking the service available.
+
+The browser receives the Angular application and accesses the REST API through the same Render domain. This avoids separate frontend and backend URLs.
 
 ### Production accounts
 
-The first successful production startup creates:
+The deployed database contains separate accounts for the three roles:
 
 | Role | Email |
 | --- | --- |
@@ -375,97 +404,17 @@ The first successful production startup creates:
 | Requester | requester@intakeflow.app |
 | Reviewer | reviewer@intakeflow.app |
 
-Production passwords are Render secrets and are intentionally not stored in this repository. Obtain them from the project owner through a secure channel.
+Production passwords are not stored in the repository. They are maintained as deployment secrets and should be obtained from the project owner.
 
-### Production verification
+### Production differences
 
-- Readiness endpoint: https://intakeflow.onrender.com/actuator/health/readiness
-- Expected response: {"status":"UP"}
-- Public Swagger UI is disabled
-- Public OpenAPI JSON is disabled
-- Demo accounts and sample records are disabled
+- Local demo accounts and sample data are disabled.
+- Swagger and OpenAPI documentation are not publicly available.
+- Database traffic uses TLS.
+- Database passwords, account passwords, and the JWT signing secret are runtime secrets.
+- The readiness endpoint is available at https://intakeflow.onrender.com/actuator/health/readiness.
 
-Render and Aiven free services can sleep after inactivity. The first request can take approximately 50 seconds or longer while they wake up.
-
-## Deploying your own copy
-
-The repository contains render.yaml, which defines one free Render Web Service built from the root Dockerfile.
-
-### 1. Push the project to GitHub
-
-Create a GitHub repository and push this project. Confirm that render.yaml and Dockerfile exist at the repository root.
-
-### 2. Create Aiven MySQL
-
-1. Create an Aiven account and project.
-2. Create a MySQL 8.4 service.
-3. Choose a suitable region and plan.
-4. Wait until its status is Running.
-5. Open Connection information.
-6. Record the host, port, database, username, and password.
-7. Keep SSL mode set to REQUIRED.
-
-Create the JDBC URL:
-
-    jdbc:mysql://HOST:PORT/DATABASE_NAME?sslMode=REQUIRED&serverTimezone=UTC
-
-Example structure:
-
-    jdbc:mysql://example.aivencloud.com:12345/defaultdb?sslMode=REQUIRED&serverTimezone=UTC
-
-Never put the real Aiven password in GitHub.
-
-### 3. Create a Render Blueprint
-
-1. Sign in to Render.
-2. Open Blueprints.
-3. Select New Blueprint Instance.
-4. Connect the GitHub repository or enter its public URL.
-5. Select the branch containing render.yaml, normally main.
-6. Enter a Blueprint name.
-7. Supply all requested secret values.
-8. Select Deploy Blueprint.
-
-### 4. Enter required Render secrets
-
-| Environment variable | Value |
-| --- | --- |
-| SPRING_DATASOURCE_URL | Aiven JDBC URL |
-| SPRING_DATASOURCE_USERNAME | Aiven username |
-| SPRING_DATASOURCE_PASSWORD | Aiven password |
-| APP_BOOTSTRAP_ADMIN_PASSWORD | Unique password of at least 12 characters |
-| APP_BOOTSTRAP_REQUESTER_PASSWORD | Different password of at least 12 characters |
-| APP_BOOTSTRAP_REVIEWER_PASSWORD | Different password of at least 12 characters |
-
-render.yaml supplies:
-
-- APP_DEMO_MODE=false
-- SPRINGDOC_API_DOCS_ENABLED=false
-- SPRINGDOC_SWAGGER_UI_ENABLED=false
-- The three bootstrap account emails
-- A generated JWT_SECRET
-
-### 5. First-deployment sequence
-
-1. Render builds Angular.
-2. Angular files are copied into the Spring Boot application.
-3. Render starts one Java container.
-4. Spring Boot connects to Aiven over TLS.
-5. Flyway validates and applies migrations.
-6. The bootstrap initializer creates missing production accounts.
-7. BCrypt hashes the passwords before database storage.
-8. Render checks /actuator/health/readiness and marks the deployment live.
-
-Bootstrap accounts are created only when their email does not already exist. Changing a bootstrap password variable later does not change the password of an existing database account.
-
-### 6. Verify production
-
-1. Open the Render URL.
-2. Confirm /actuator/health/readiness reports UP.
-3. Sign in with each role.
-4. Confirm /api-docs returns 404.
-5. Confirm /api/openapi returns 404.
-6. Check Render logs for database or migration errors.
+Render and Aiven are currently using free services. They can sleep or power off after inactivity, so the first request may take approximately 50 seconds or longer while the services wake up.
 
 ## Architecture
 
@@ -474,8 +423,8 @@ Browser
   |
   | HTTPS
   v
-Render: one Spring Boot container
-  |-- Angular static frontend
+Render: Spring Boot container
+  |-- Angular static application
   |-- REST API under /api/v1
   |-- JWT authentication and role authorization
   |-- Validation and workflow services
@@ -488,98 +437,134 @@ Aiven: MySQL 8.4
 
 ### Frontend
 
-Angular provides the interface, routing, forms, role-specific navigation, loaders, and top-center toast messages. Route guards hide pages that a role cannot use.
+Angular provides:
+
+- Role-specific navigation and dashboards
+- Dynamic form creation and rendering
+- Form and request validation feedback
+- Loading indicators
+- Top-center success and error notifications
+- Responsive layouts and accessible controls
 
 ### Backend
 
-Spring Boot owns authentication, authorization, validation, form versioning, state transitions, and audit history. The backend verifies every request even when the frontend hides an unavailable action.
+Spring Boot provides:
 
-### Database
+- Authentication and JWT creation
+- Role and ownership authorization
+- Form versioning
+- Submission validation
+- Workflow state transitions
+- Search and pagination
+- Audit history
+- Health and readiness endpoints
 
-MySQL stores users, form definitions, immutable form versions, fields, dropdown options, submissions, answers, and workflow events.
+The backend is the security boundary. Frontend route guards improve the user experience, but every protected action is independently checked by the API.
 
-See docs/architecture.md for the detailed domain model and workflow.
+### API groups
+
+| API path | Purpose |
+| --- | --- |
+| /api/v1/auth | Login and current-user information |
+| /api/v1/forms | Form management and published-form discovery |
+| /api/v1/submissions | Drafts, submission, decisions, and history |
+| /api/v1/dashboard | Role-specific summary information |
+
+The complete domain model, workflow, security boundaries, and reliability decisions are documented in [docs/architecture.md](docs/architecture.md).
 
 ## Key design decisions
 
-### One production container
+### Single production container
 
-Angular is compiled and served by Spring Boot. The UI and API use the same domain, avoiding production CORS complexity and frontend/backend version drift.
+Angular is built and served by Spring Boot. The interface and API use the same origin, which keeps authentication and routing predictable and prevents frontend and backend deployment versions from drifting.
 
-### Versioned published forms
+### Immutable published form versions
 
-A published form is never edited in place. Later changes produce a new version while existing submissions retain the exact version originally completed.
+Published versions are never edited in place. Existing submissions retain the exact form structure used when they were created.
 
-### Backend-controlled workflow
+### Backend-controlled authorization and workflow
 
-The frontend shows only relevant actions, but Spring Boot enforces roles and transitions. A requester cannot approve, a reviewer cannot edit answers, and reviewers cannot see unsubmitted drafts.
+The backend enforces roles, ownership, validation, and valid status transitions. Interface visibility is not treated as the security boundary.
 
-### Flyway-managed schema
+### Explicit database migrations
 
-Database changes are explicit, ordered, repeatable, and reviewable. Hibernate validates the schema instead of changing it automatically.
+Flyway owns schema evolution. Hibernate validates the result rather than modifying tables automatically.
 
-### Append-only audit history
+### Append-only audit trail
 
-Meaningful transitions create WorkflowEvent records, preserving submission, approval, rejection, and resubmission history.
+Workflow events preserve the sequence of decisions and comments without replacing earlier history.
 
 ### Optimistic locking
 
-Submission version values prevent simultaneous updates from silently overwriting each other.
+Submission rows use a version value to prevent simultaneous updates from silently overwriting one another.
 
 ### Runtime secrets
 
-Database passwords, account passwords, and the JWT signing key come from Render environment variables and are not committed to source control.
+Production database credentials, bootstrap account passwords, and the JWT signing secret are injected as environment variables and are not committed to Git.
 
-## Project structure
+### Reliability
 
-~~~text
-backend/                         Spring Boot API and tests
-  src/main/java/                Controllers, services, security, domain
-  src/main/resources/
-    db/migration/               Flyway SQL migrations
-frontend/                        Angular application and tests
-scripts/                         Full API workflow test
-docs/                            Detailed architecture notes
-compose.yaml                     Local MySQL and application
-Dockerfile                       Production multi-stage image
-render.yaml                      Render Blueprint
-.env.example                     Environment variable reference
-~~~
+- Health and readiness probes allow the hosting platform to detect startup failures.
+- Graceful shutdown allows active requests to finish.
+- Server-side pagination prevents unbounded database reads.
+- Published form versioning protects historical data.
 
 ## Troubleshooting
 
-### Port 8080 or 3306 is already used
+### Docker is not running
 
-Stop the program using that port or stop previous IntakeFlow containers:
+Open Docker Desktop and wait for it to report that the Docker engine is running. Then repeat:
+
+~~~powershell
+docker compose up --build
+~~~
+
+### Port 8080 or 3306 is already in use
+
+Stop the existing application using that port or stop old project containers:
 
 ~~~powershell
 docker compose down
 ~~~
 
-### MySQL is unhealthy
+### MySQL does not become healthy
+
+View the database logs:
 
 ~~~powershell
 docker compose logs database
+~~~
+
+Restart the local environment:
+
+~~~powershell
 docker compose down
 docker compose up --build
 ~~~
 
-### The backend cannot connect to MySQL
+### Application container does not start
+
+View the application logs:
 
 ~~~powershell
-docker compose ps
+docker compose logs application
 ~~~
 
-When Spring Boot runs directly on your computer, the database host is localhost. Inside Docker Compose, the host is database.
+Look for a database connection error or migration failure.
 
 ### Local login fails
 
-Confirm APP_DEMO_MODE is true and use an email ending in @intakeflow.demo. Production emails ending in @intakeflow.app are separate.
+Confirm that the email ends in @intakeflow.demo and use the local password IntakeFlow@2026.
 
-### The deployed site is initially slow
+### A clean local database is required
 
-Free services may be sleeping. Wait for Render and Aiven to wake up and retry.
+~~~powershell
+docker compose down -v
+docker compose up --build
+~~~
 
-### Production API documentation returns 404
+This deletes all local records and reloads the sample data.
 
-This is intentional. Swagger and OpenAPI are available locally and disabled by render.yaml in production.
+### Deployed application is initially slow
+
+Wait for the Render and Aiven free services to wake up, then refresh the page.
