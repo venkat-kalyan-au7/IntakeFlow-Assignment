@@ -1070,6 +1070,8 @@ em {
   border: 0;
   outline: 0;
   background: transparent;
+  width: 100%;
+  min-width: 0;
 }
 .title-input {
   font-weight: 800;
