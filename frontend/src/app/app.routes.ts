@@ -1,5 +1,5 @@
 import { Routes } from '@angular/router';
-import { authGuard, roleGuard } from './core/guards';
+import { authGuard, roleGuard, unsavedChangesGuard } from './core/guards';
 import { LoginComponent } from './features/auth/login.component';
 import { ShellComponent } from './shared/shell.component';
 export const routes: Routes = [
@@ -17,6 +17,7 @@ export const routes: Routes = [
       {
         path: 'forms',
         canActivate: [roleGuard(['ADMIN'])],
+        canDeactivate: [unsavedChangesGuard],
         loadComponent: () =>
           import('./features/forms/form-studio.component').then((m) => m.FormStudioComponent),
       },
@@ -34,6 +35,7 @@ export const routes: Routes = [
       },
       {
         path: 'requests/:id',
+        canActivate: [roleGuard(['REQUESTER', 'ADMIN'])],
         loadComponent: () =>
           import('./features/requests/request-detail.component').then(
             (m) => m.RequestDetailComponent,

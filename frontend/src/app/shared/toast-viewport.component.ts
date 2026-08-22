@@ -12,7 +12,7 @@ import { ToastService } from '../core/feedback.service';
           [class.toast--success]="toast.kind === 'success'"
           [class.toast--error]="toast.kind === 'error'"
           [class.toast--info]="toast.kind === 'info'"
-          role="status"
+          [attr.role]="toast.kind === 'error' ? 'alert' : 'status'"
         >
           <span class="toast__icon">{{
             toast.kind === 'success' ? '✓' : toast.kind === 'error' ? '!' : 'i'

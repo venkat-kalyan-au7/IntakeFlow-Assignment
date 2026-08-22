@@ -25,21 +25,31 @@ import { EmptyState } from '../../shared/empty-state';
         </div>
       </div>
       <div class="form-gallery">
-        @for (form of forms(); track form.id) {
-          <a class="form-card" [routerLink]="['/requests/new', form.id]"
-            ><span class="form-card__mark"><i></i><i></i><i></i></span>
-            <div>
-              <span class="eyebrow">Published form</span>
-              <h3>{{ form.title }}</h3>
-              <p>{{ form.description }}</p>
-            </div>
-            <span class="form-card__arrow">→</span></a
-          >
-        } @empty {
-          <app-empty-state
-            title="No forms available"
-            message="Published forms will appear here when your workspace is ready."
-          />
+        @if (loadingForms()) {
+          <div class="list-loading" aria-live="polite">Loading available forms…</div>
+        } @else if (formsError()) {
+          <div class="page-state page-state--embedded" role="alert">
+            <h3>Forms unavailable</h3>
+            <p>{{ formsError() }}</p>
+            <button class="button button--secondary" (click)="loadForms()">Try again</button>
+          </div>
+        } @else {
+          @for (form of forms(); track form.id) {
+            <a class="form-card" [routerLink]="['/requests/new', form.id]"
+              ><span class="form-card__mark"><i></i><i></i><i></i></span>
+              <div>
+                <span class="eyebrow">Published form</span>
+                <h3>{{ form.title }}</h3>
+                <p>{{ form.description }}</p>
+              </div>
+              <span class="form-card__arrow">→</span></a
+            >
+          } @empty {
+            <app-empty-state
+              title="No forms available"
+              message="Published forms will appear here when your workspace is ready."
+            />
+          }
         }
       </div>
     </section>
@@ -50,7 +60,15 @@ import { EmptyState } from '../../shared/empty-state';
           <p>Track drafts and submitted work in one place.</p>
         </div>
       </header>
-      @if (items().length) {
+      @if (loadingItems()) {
+        <div class="list-loading" aria-live="polite">Loading your requests…</div>
+      } @else if (itemsError()) {
+        <div class="page-state page-state--embedded" role="alert">
+          <h3>Requests unavailable</h3>
+          <p>{{ itemsError() }}</p>
+          <button class="button button--secondary" (click)="load()">Try again</button>
+        </div>
+      } @else if (items().length) {
         <div class="request-table">
           <div class="request-table__head">
             <span>Request</span><span>Status</span><span>Created</span><span>Updated</span>
@@ -100,18 +118,45 @@ export class RequestsComponent {
   private api = inject(ApiService);
   forms = signal<FormDefinition[]>([]);
   items = signal<Submission[]>([]);
+  loadingForms = signal(true);
+  loadingItems = signal(true);
+  formsError = signal('');
+  itemsError = signal('');
   page = signal(0);
   totalPages = signal(0);
   totalElements = signal(0);
   constructor() {
-    this.api.publishedForms().subscribe((x) => this.forms.set(x));
+    this.loadForms();
     this.load();
   }
+  loadForms() {
+    this.loadingForms.set(true);
+    this.formsError.set('');
+    this.api.publishedForms().subscribe({
+      next: (x) => {
+        this.forms.set(x);
+        this.loadingForms.set(false);
+      },
+      error: () => {
+        this.loadingForms.set(false);
+        this.formsError.set('We could not load published forms.');
+      },
+    });
+  }
   load() {
-    this.api.submissions(undefined, this.page()).subscribe((x) => {
-      this.items.set(x.content);
-      this.totalPages.set(x.totalPages);
-      this.totalElements.set(x.totalElements);
+    this.loadingItems.set(true);
+    this.itemsError.set('');
+    this.api.submissions(undefined, this.page()).subscribe({
+      next: (x) => {
+        this.items.set(x.content);
+        this.totalPages.set(x.totalPages);
+        this.totalElements.set(x.totalElements);
+        this.loadingItems.set(false);
+      },
+      error: () => {
+        this.loadingItems.set(false);
+        this.itemsError.set('We could not load your requests.');
+      },
     });
   }
   changePage(page: number) {

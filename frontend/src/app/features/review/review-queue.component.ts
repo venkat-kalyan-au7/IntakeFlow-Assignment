@@ -24,7 +24,12 @@ import { EmptyState } from '../../shared/empty-state';
     <section class="panel">
       <div class="filter-bar">
         <label class="search"
-          ><span></span><input [(ngModel)]="query" placeholder="Search request, owner or reference"
+          ><span></span
+          ><input
+            [(ngModel)]="query"
+            (ngModelChange)="onSearch()"
+            aria-label="Search review queue"
+            placeholder="Search request, owner or reference"
         /></label>
         <div class="filter-pills">
           @for (option of filters; track option.value) {
@@ -34,9 +39,17 @@ import { EmptyState } from '../../shared/empty-state';
           }
         </div>
       </div>
-      @if (filtered().length) {
+      @if (loading()) {
+        <div class="list-loading" aria-live="polite">Loading review queue…</div>
+      } @else if (error()) {
+        <div class="page-state page-state--embedded" role="alert">
+          <h2>Review queue unavailable</h2>
+          <p>{{ error() }}</p>
+          <button class="button button--secondary" (click)="load()">Try again</button>
+        </div>
+      } @else if (items().length) {
         <div class="review-list">
-          @for (item of filtered(); track item.id) {
+          @for (item of items(); track item.id) {
             <a [routerLink]="['/review', item.id]" class="review-item"
               ><span class="review-item__mark"></span
               ><span class="review-item__main"
@@ -53,7 +66,11 @@ import { EmptyState } from '../../shared/empty-state';
       } @else {
         <app-empty-state
           title="The queue is clear"
-          message="No requests match the current filter."
+          [message]="
+            query.trim()
+              ? 'No requests match your search.'
+              : 'No requests match the current filter.'
+          "
         />
       }
       @if (totalPages() > 1) {
@@ -86,7 +103,10 @@ export class ReviewQueueComponent {
   totalPages = signal(0);
   totalElements = signal(0);
   awaitingCount = signal(0);
+  loading = signal(true);
+  error = signal('');
   query = '';
+  private searchTimer?: number;
   filters: { label: string; value: SubmissionStatus | '' }[] = [
     { label: 'Needs review', value: 'SUBMITTED' },
     { label: 'Approved', value: 'APPROVED' },
@@ -98,11 +118,25 @@ export class ReviewQueueComponent {
     this.api.dashboard().subscribe((x) => this.awaitingCount.set(x.submitted));
   }
   load() {
-    this.api.submissions(this.filter() || undefined, this.page()).subscribe((x) => {
-      this.items.set(x.content);
-      this.totalPages.set(x.totalPages);
-      this.totalElements.set(x.totalElements);
+    this.loading.set(true);
+    this.error.set('');
+    this.api.submissions(this.filter() || undefined, this.page(), 10, this.query).subscribe({
+      next: (x) => {
+        this.items.set(x.content);
+        this.totalPages.set(x.totalPages);
+        this.totalElements.set(x.totalElements);
+        this.loading.set(false);
+      },
+      error: () => {
+        this.loading.set(false);
+        this.error.set('We could not load requests for this queue.');
+      },
     });
+  }
+  onSearch() {
+    window.clearTimeout(this.searchTimer);
+    this.page.set(0);
+    this.searchTimer = window.setTimeout(() => this.load(), 250);
   }
   setFilter(v: SubmissionStatus | '') {
     this.filter.set(v);
@@ -113,11 +147,5 @@ export class ReviewQueueComponent {
     if (page < 0 || page >= this.totalPages()) return;
     this.page.set(page);
     this.load();
-  }
-  filtered() {
-    const q = this.query.toLowerCase().trim();
-    return this.items().filter(
-      (x) => !q || `${x.referenceCode} ${x.formTitle} ${x.requesterName}`.toLowerCase().includes(q),
-    );
   }
 }

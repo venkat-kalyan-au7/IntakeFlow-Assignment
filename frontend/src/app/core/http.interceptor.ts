@@ -14,7 +14,7 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   loading.begin();
   return next(nextRequest).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && token) auth.logout();
+      if (error.status === 401 && token) auth.expireSession();
       const detail = error.error?.detail;
       const fallback =
         error.status === 0

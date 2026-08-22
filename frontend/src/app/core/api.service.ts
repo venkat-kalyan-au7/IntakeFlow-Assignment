@@ -29,9 +29,10 @@ export class ApiService {
   archiveForm(id: number) {
     return this.http.delete<void>(`${this.base}/forms/${id}`);
   }
-  submissions(status?: SubmissionStatus, page = 0, size = 10) {
+  submissions(status?: SubmissionStatus, page = 0, size = 10, query = '') {
     let params = new HttpParams().set('page', page).set('size', size);
     if (status) params = params.set('status', status);
+    if (query.trim()) params = params.set('query', query.trim());
     return this.http.get<PageResponse<Submission>>(`${this.base}/submissions`, { params });
   }
   submission(id: number) {

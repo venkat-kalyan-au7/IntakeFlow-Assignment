@@ -1,6 +1,7 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
 import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/feedback.service';
@@ -9,14 +10,25 @@ import { FormDefinition, Submission } from '../../core/models';
 import { StatusBadge } from '../../shared/status-badge';
 @Component({
   selector: 'app-request-detail',
-  imports: [DatePipe, ReactiveFormsModule, RouterLink, StatusBadge],
+  imports: [DatePipe, ReactiveFormsModule, RouterLink, CdkTrapFocus, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: ` <main class="page page--detail">
-    @if (item(); as request) {
+    @if (loading()) {
+      <section class="panel page-state" aria-live="polite">
+        <h2>Loading request…</h2>
+        <p>Retrieving the latest workflow details.</p>
+      </section>
+    } @else if (loadError()) {
+      <section class="panel page-state" role="alert">
+        <h2>Request unavailable</h2>
+        <p>{{ loadError() }}</p>
+        <a class="button button--secondary" [routerLink]="backLink()"
+          >Return to {{ backLabel() }}</a
+        >
+      </section>
+    } @else if (item(); as request) {
       <div class="detail-breadcrumb">
-        <a [routerLink]="backLink()">{{
-          auth.user()?.role === 'REVIEWER' ? 'Review Queue' : 'Requests'
-        }}</a
+        <a [routerLink]="backLink()">{{ backLabel() }}</a
         ><span>›</span><span>{{ request.referenceCode }}</span>
       </div>
       <header class="detail-header">
@@ -32,13 +44,23 @@ import { StatusBadge } from '../../shared/status-badge';
         </div>
         @if (auth.user()?.role === 'REVIEWER' && request.status === 'SUBMITTED') {
           <div class="detail-actions">
-            <button class="button button--secondary button--danger" (click)="rejectOpen.set(true)">
+            <button
+              class="button button--secondary button--danger"
+              (click)="openReject()"
+              [disabled]="saving()"
+            >
               Request changes</button
-            ><button class="button button--primary" (click)="approve()">Approve request</button>
+            ><button class="button button--primary" (click)="approve()" [disabled]="saving()">
+              {{ saving() ? 'Approving…' : 'Approve request' }}
+            </button>
           </div>
         }
         @if (auth.user()?.role === 'REQUESTER' && request.status === 'REJECTED') {
-          <button class="button button--primary" (click)="editing.set(!editing())">
+          <button
+            class="button button--primary"
+            (click)="toggleEditing()"
+            [disabled]="!definition()"
+          >
             {{ editing() ? 'Cancel editing' : 'Update request' }}
           </button>
         }
@@ -47,9 +69,6 @@ import { StatusBadge } from '../../shared/status-badge';
         <div class="alert alert--attention">
           <strong>Changes requested</strong><span>{{ request.rejectionComment }}</span>
         </div>
-      }
-      @if (message()) {
-        <div class="alert alert--success">{{ message() }}</div>
       }
       @if (error() && !rejectOpen()) {
         <div class="alert alert--error">{{ error() }}</div>
@@ -148,12 +167,14 @@ import { StatusBadge } from '../../shared/status-badge';
         </aside>
       </section>
       @if (rejectOpen()) {
-        <div class="modal-backdrop" (click)="rejectOpen.set(false)">
+        <div class="modal-backdrop" (click)="closeReject()">
           <section
             class="modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="reject-title"
+            cdkTrapFocus
+            [cdkTrapFocusAutoCapture]="true"
             (click)="$event.stopPropagation()"
           >
             <span class="modal__mark">!</span>
@@ -170,10 +191,18 @@ import { StatusBadge } from '../../shared/status-badge';
               <span class="field-error visible">{{ error() }}</span>
             }
             <footer>
-              <button class="button button--secondary" (click)="rejectOpen.set(false)">
+              <button
+                class="button button--secondary"
+                (click)="closeReject()"
+                [disabled]="saving()"
+              >
                 Cancel</button
-              ><button class="button button--danger-solid" (click)="reject(comment.value)">
-                Send back to requester
+              ><button
+                class="button button--danger-solid"
+                (click)="reject(comment.value)"
+                [disabled]="saving()"
+              >
+                {{ saving() ? 'Sending…' : 'Send back to requester' }}
               </button>
             </footer>
           </section>
@@ -188,10 +217,11 @@ export class RequestDetailComponent {
   auth = inject(AuthService);
   private toasts = inject(ToastService);
   item = signal<Submission | null>(null);
+  loading = signal(true);
+  loadError = signal('');
   definition = signal<FormDefinition | null>(null);
   editing = signal(false);
   rejectOpen = signal(false);
-  message = signal('');
   error = signal('');
   saving = signal(false);
   editForm = new FormGroup<Record<string, FormControl<string>>>({});
@@ -200,52 +230,112 @@ export class RequestDetailComponent {
     this.load();
   }
   load() {
-    this.api.submission(this.id).subscribe((item) => {
-      this.item.set(item);
-      if (item.status === 'REJECTED') {
-        this.api.formVersion(item.formVersionId).subscribe((definition) => {
-          this.definition.set(definition);
-          const answers = new Map(item.answers.map((answer) => [answer.key, answer.value]));
-          this.editForm = new FormGroup({});
-          for (const field of definition.fields) {
-            this.editForm.addControl(
-              field.key,
-              new FormControl(answers.get(field.key) ?? '', {
-                nonNullable: true,
-                validators: field.required ? [Validators.required] : [],
-              }),
-            );
-          }
-        });
-      }
+    this.loading.set(true);
+    this.loadError.set('');
+    this.api.submission(this.id).subscribe({
+      next: (item) => {
+        this.item.set(item);
+        this.loading.set(false);
+        if (item.status === 'REJECTED' && this.auth.user()?.role === 'REQUESTER') {
+          this.api.formVersion(item.formVersionId).subscribe({
+            next: (definition) => {
+              this.definition.set(definition);
+              this.buildEditForm(item, definition);
+            },
+            error: () => this.error.set('Editing is temporarily unavailable.'),
+          });
+        }
+      },
+      error: (e) => {
+        this.loading.set(false);
+        this.loadError.set(e.error?.detail ?? 'We could not load this request.');
+      },
     });
   }
   backLink() {
-    return this.auth.user()?.role === 'REVIEWER' ? '/review' : '/requests';
+    return this.auth.user()?.role === 'REVIEWER'
+      ? '/review'
+      : this.auth.user()?.role === 'ADMIN'
+        ? '/dashboard'
+        : '/requests';
+  }
+  backLabel() {
+    return this.auth.user()?.role === 'REVIEWER'
+      ? 'Review Queue'
+      : this.auth.user()?.role === 'ADMIN'
+        ? 'Overview'
+        : 'Requests';
+  }
+  toggleEditing() {
+    if (this.editing()) {
+      const item = this.item();
+      const definition = this.definition();
+      if (item && definition) this.buildEditForm(item, definition);
+    }
+    this.error.set('');
+    this.editing.update((value) => !value);
+  }
+  private buildEditForm(item: Submission, definition: FormDefinition) {
+    const answers = new Map(item.answers.map((answer) => [answer.key, answer.value]));
+    this.editForm = new FormGroup({});
+    for (const field of definition.fields) {
+      this.editForm.addControl(
+        field.key,
+        new FormControl(answers.get(field.key) ?? '', {
+          nonNullable: true,
+          validators: field.required ? [Validators.required] : [],
+        }),
+      );
+    }
   }
   approve() {
-    this.api.approve(this.id).subscribe((x) => {
-      this.item.set(x);
-      this.message.set('Request approved successfully.');
-      this.toasts.success('Request approved', `${x.referenceCode} is complete.`);
+    if (this.saving()) return;
+    this.saving.set(true);
+    this.error.set('');
+    this.api.approve(this.id).subscribe({
+      next: (x) => {
+        this.saving.set(false);
+        this.item.set(x);
+        this.toasts.success('Request approved', `${x.referenceCode} is complete.`);
+      },
+      error: (e) => {
+        this.saving.set(false);
+        this.error.set(e.error?.detail ?? 'Could not approve this request.');
+      },
     });
+  }
+  openReject() {
+    this.error.set('');
+    this.rejectOpen.set(true);
+  }
+  closeReject() {
+    if (this.saving()) return;
+    this.rejectOpen.set(false);
+    this.error.set('');
   }
   reject(comment: string) {
     if (comment.trim().length < 3) {
       this.error.set('Enter a meaningful comment before continuing.');
+      this.toasts.error('Comment required', 'Explain what the requester needs to update.');
       return;
     }
+    if (this.saving()) return;
+    this.saving.set(true);
     this.api.reject(this.id, comment.trim()).subscribe({
       next: (x) => {
+        this.saving.set(false);
         this.item.set(x);
         this.rejectOpen.set(false);
-        this.message.set('The request was returned with clear next steps.');
+        this.error.set('');
         this.toasts.success(
           'Changes requested',
           `${x.referenceCode} was returned to the requester.`,
         );
       },
-      error: (e) => this.error.set(e.error?.detail ?? 'Could not update the request.'),
+      error: (e) => {
+        this.saving.set(false);
+        this.error.set(e.error?.detail ?? 'Could not update the request.');
+      },
     });
   }
   save(resubmit: boolean) {
@@ -253,6 +343,7 @@ export class RequestDetailComponent {
     if (resubmit && this.editForm.invalid) {
       this.editForm.markAllAsTouched();
       this.error.set('Complete the required fields before resubmitting.');
+      this.toasts.error('Required information missing', 'Complete the highlighted fields.');
       return;
     }
     this.saving.set(true);
@@ -263,7 +354,6 @@ export class RequestDetailComponent {
           this.item.set(x);
           this.editing.set(false);
           this.saving.set(false);
-          this.message.set('Changes saved.');
           this.toasts.success('Changes saved', `${x.referenceCode} remains ready for editing.`);
           return;
         }
@@ -272,7 +362,6 @@ export class RequestDetailComponent {
             this.item.set(y);
             this.editing.set(false);
             this.saving.set(false);
-            this.message.set('Request resubmitted for review.');
             this.toasts.success(
               'Request resubmitted',
               `${y.referenceCode} is back in the review queue.`,
@@ -289,6 +378,10 @@ export class RequestDetailComponent {
         this.error.set(e.error?.detail ?? 'Could not save changes.');
       },
     });
+  }
+  @HostListener('document:keydown.escape')
+  onEscape() {
+    if (this.rejectOpen()) this.closeReject();
   }
   eventLabel(action: string) {
     return (

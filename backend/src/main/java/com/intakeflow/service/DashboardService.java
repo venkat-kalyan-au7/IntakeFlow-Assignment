@@ -23,10 +23,11 @@ public class DashboardService {
   public DashboardView get() {
     var u = current.get();
     boolean own = u.getRole() == Role.REQUESTER;
+    boolean reviewer = u.getRole() == Role.REVIEWER;
     long d =
         own
             ? submissions.countByRequesterIdAndStatus(u.getId(), SubmissionStatus.DRAFT)
-            : submissions.countByStatus(SubmissionStatus.DRAFT);
+            : reviewer ? 0 : submissions.countByStatus(SubmissionStatus.DRAFT);
     long s =
         own
             ? submissions.countByRequesterIdAndStatus(u.getId(), SubmissionStatus.SUBMITTED)
@@ -42,7 +43,13 @@ public class DashboardService {
     var recent =
         (own
                 ? submissions.findTop6ByRequesterIdOrderByUpdatedAtDesc(u.getId())
-                : submissions.findTop6ByOrderByUpdatedAtDesc())
+                : reviewer
+                    ? submissions.findTop6ByStatusInOrderByUpdatedAtDesc(
+                        java.util.List.of(
+                            SubmissionStatus.SUBMITTED,
+                            SubmissionStatus.APPROVED,
+                            SubmissionStatus.REJECTED))
+                    : submissions.findTop6ByOrderByUpdatedAtDesc())
             .stream().map(ApiMapper::submission).toList();
     return new DashboardView(d, s, a, r, forms.countPublished(), recent);
   }

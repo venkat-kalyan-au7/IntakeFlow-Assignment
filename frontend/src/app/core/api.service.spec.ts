@@ -18,13 +18,14 @@ describe('ApiService', () => {
   afterEach(() => http.verify());
 
   it('sends status and pagination parameters when listing submissions', () => {
-    service.submissions('REJECTED', 2, 25).subscribe();
+    service.submissions('REJECTED', 2, 25, ' vendor ').subscribe();
 
     const request = http.expectOne((candidate) => candidate.url === '/api/v1/submissions');
     expect(request.request.method).toBe('GET');
     expect(request.request.params.get('status')).toBe('REJECTED');
     expect(request.request.params.get('page')).toBe('2');
     expect(request.request.params.get('size')).toBe('25');
+    expect(request.request.params.get('query')).toBe('vendor');
     request.flush({
       content: [],
       page: 2,

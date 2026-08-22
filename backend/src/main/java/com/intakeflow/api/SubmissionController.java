@@ -25,9 +25,10 @@ public class SubmissionController {
   @GetMapping("/submissions")
   PageView<SubmissionView> list(
       @RequestParam(required = false) SubmissionStatus status,
+      @RequestParam(defaultValue = "") String query,
       @RequestParam(defaultValue = "0") int page,
       @RequestParam(defaultValue = "20") int size) {
-    return service.list(status, page, size);
+    return service.list(status, query, page, size);
   }
 
   @GetMapping("/submissions/{id}")

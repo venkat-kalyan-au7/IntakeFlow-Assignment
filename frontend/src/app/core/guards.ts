@@ -1,5 +1,5 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router } from '@angular/router';
+import { CanActivateFn, CanDeactivateFn, Router } from '@angular/router';
 import { AuthService } from './auth.service';
 import { Role } from './models';
 export const authGuard: CanActivateFn = () => {
@@ -14,3 +14,10 @@ export const roleGuard =
       ? true
       : inject(Router).createUrlTree(['/dashboard']);
   };
+
+export interface UnsavedChangesAware {
+  canDeactivate(): boolean;
+}
+
+export const unsavedChangesGuard: CanDeactivateFn<UnsavedChangesAware> = (component) =>
+  component.canDeactivate();

@@ -17,21 +17,30 @@ import { EmptyState } from '../../shared/empty-state';
         <h1>Good {{ greeting() }}, {{ firstName() }}</h1>
         <p>{{ subtitle() }}</p>
       </div>
-      <a class="button button--primary" [routerLink]="primaryLink()"
+      <a
+        class="button button--primary"
+        [routerLink]="primaryLink()"
+        [queryParams]="primaryQueryParams()"
         ><span class="button__plus">+</span>{{ primaryLabel() }}</a
       >
     </header>
     @if (loading()) {
       <div class="metrics skeleton-row"><span></span><span></span><span></span><span></span></div>
     } @else if (data(); as d) {
-      <section class="metrics" aria-label="Request summary">
-        <article>
-          <span class="metric-icon metric-icon--draft"></span>
-          <div>
-            <span>Drafts</span><strong>{{ d.drafts }}</strong>
-          </div>
-          <small>In progress</small>
-        </article>
+      <section
+        class="metrics"
+        [class.metrics--three]="auth.user()?.role === 'REVIEWER'"
+        aria-label="Request summary"
+      >
+        @if (auth.user()?.role !== 'REVIEWER') {
+          <article>
+            <span class="metric-icon metric-icon--draft"></span>
+            <div>
+              <span>Drafts</span><strong>{{ d.drafts }}</strong>
+            </div>
+            <small>In progress</small>
+          </article>
+        }
         <article>
           <span class="metric-icon metric-icon--submitted"></span>
           <div>
@@ -61,7 +70,9 @@ import { EmptyState } from '../../shared/empty-state';
               <h2>Recent activity</h2>
               <p>Requests updated across your workspace</p>
             </div>
-            <a [routerLink]="listLink()">View all</a>
+            @if (auth.user()?.role !== 'ADMIN') {
+              <a [routerLink]="listLink()">View all</a>
+            }
           </header>
           @if (d.recent.length) {
             <div class="request-table">
@@ -111,6 +122,12 @@ import { EmptyState } from '../../shared/empty-state';
           </dl>
         </aside>
       </section>
+    } @else if (error()) {
+      <section class="panel page-state" role="alert">
+        <h2>Dashboard unavailable</h2>
+        <p>{{ error() }}</p>
+        <button class="button button--secondary" (click)="load()">Try again</button>
+      </section>
     }
   </main>`,
 })
@@ -118,15 +135,24 @@ export class DashboardComponent {
   private api = inject(ApiService);
   auth = inject(AuthService);
   loading = signal(true);
+  error = signal('');
   data = signal<Dashboard | null>(null);
   today = new Date();
   constructor() {
+    this.load();
+  }
+  load() {
+    this.loading.set(true);
+    this.error.set('');
     this.api.dashboard().subscribe({
       next: (d) => {
         this.data.set(d);
         this.loading.set(false);
       },
-      error: () => this.loading.set(false),
+      error: () => {
+        this.loading.set(false);
+        this.error.set('We could not load your workspace summary.');
+      },
     });
   }
   firstName() {
@@ -156,6 +182,9 @@ export class DashboardComponent {
       : this.auth.user()?.role === 'REVIEWER'
         ? '/review'
         : '/requests';
+  }
+  primaryQueryParams() {
+    return this.auth.user()?.role === 'ADMIN' ? { new: 'true' } : null;
   }
   listLink() {
     return this.auth.user()?.role === 'REVIEWER'

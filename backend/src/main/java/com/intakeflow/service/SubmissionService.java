@@ -106,11 +106,14 @@ public class SubmissionService {
     var s = load(id);
     var actor = current.get();
     if (actor.getRole() == Role.REQUESTER) owner(s, actor);
+    if (actor.getRole() == Role.REVIEWER && s.getStatus() == SubmissionStatus.DRAFT)
+      throw new ApiException(HttpStatus.FORBIDDEN, "Draft requests are private until submitted");
     return submission(s);
   }
 
   @Transactional(readOnly = true)
-  public PageView<SubmissionView> list(SubmissionStatus status, int page, int size) {
+  public PageView<SubmissionView> list(
+      SubmissionStatus status, String query, int page, int size) {
     var actor = current.get();
     var pageable =
         PageRequest.of(
@@ -123,7 +126,21 @@ public class SubmissionService {
           status == null
               ? submissions.findByRequesterId(actor.getId(), pageable)
               : submissions.findByRequesterIdAndStatus(actor.getId(), status, pageable);
-    else
+    else if (actor.getRole() == Role.REVIEWER) {
+      if (status == SubmissionStatus.DRAFT)
+        throw new ApiException(HttpStatus.FORBIDDEN, "Draft requests are private until submitted");
+      var statuses =
+          status == null
+              ? java.util.List.of(
+                  SubmissionStatus.SUBMITTED,
+                  SubmissionStatus.APPROVED,
+                  SubmissionStatus.REJECTED)
+              : java.util.List.of(status);
+      String normalized = query == null ? "" : query.trim().toLowerCase(Locale.ROOT);
+      result =
+          submissions.searchReviewQueue(
+              statuses, normalized, "%" + normalized + "%", pageable);
+    } else
       result =
           status == null
               ? submissions.findAll(pageable)

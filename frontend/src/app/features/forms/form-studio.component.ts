@@ -1,13 +1,15 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
+import { ActivatedRoute } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { ToastService } from '../../core/feedback.service';
 import { FieldDefinition, FieldType, FormDefinition } from '../../core/models';
 import { StatusBadge } from '../../shared/status-badge';
 @Component({
   selector: 'app-form-studio',
-  imports: [FormsModule, CdkDropList, CdkDrag, StatusBadge],
+  imports: [FormsModule, CdkDropList, CdkDrag, CdkTrapFocus, StatusBadge],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: ` <main class="page page--studio">
     <header class="page-header">
@@ -23,18 +25,29 @@ import { StatusBadge } from '../../shared/status-badge';
         <div class="studio-title">
           <span>Forms</span><small>{{ forms().length }}</small>
         </div>
-        @for (form of forms(); track form.id) {
-          <button
-            class="form-list-item"
-            [class.active]="selectedForm()?.id === form.id"
-            (click)="load(form)"
-          >
-            <span class="form-list-item__icon"></span
-            ><span
-              ><strong>{{ form.title }}</strong
-              ><small>Version {{ form.version }}</small></span
-            ><app-status-badge [status]="form.status" />
-          </button>
+        @if (loadingForms()) {
+          <p class="helper">Loading forms…</p>
+        } @else if (formsError()) {
+          <div class="compact-error" role="alert">
+            <span>{{ formsError() }}</span>
+            <button class="text-button" (click)="refresh()">Try again</button>
+          </div>
+        } @else {
+          @for (form of forms(); track form.id) {
+            <button
+              class="form-list-item"
+              [class.active]="selectedForm()?.id === form.id"
+              (click)="load(form)"
+            >
+              <span class="form-list-item__icon"></span
+              ><span
+                ><strong>{{ form.title }}</strong
+                ><small>Version {{ form.version }}</small></span
+              ><app-status-badge [status]="form.status" />
+            </button>
+          } @empty {
+            <p class="helper">No forms have been created yet.</p>
+          }
         }
         <div class="studio-title studio-title--fields"><span>Field library</span></div>
         <p class="helper">Add a field, then refine it in the properties panel.</p>
@@ -76,7 +89,7 @@ import { StatusBadge } from '../../shared/status-badge';
                 Archive
               </button>
             }
-            ><button class="button button--secondary" (click)="save()" [disabled]="saving()">
+            <button class="button button--secondary" (click)="save()" [disabled]="saving()">
               {{ saving() ? 'Saving…' : 'Save draft' }}</button
             ><button
               class="button button--primary"
@@ -128,9 +141,8 @@ import { StatusBadge } from '../../shared/status-badge';
         </div>
       </section>
       <aside class="properties">
-        <div class="properties-tabs">
-          <button class="active">Properties</button
-          ><button disabled title="Use the live preview below">Preview</button>
+        <div class="properties-heading">
+          <strong>Field properties</strong>
         </div>
         @if (activeField(); as field) {
           <div class="properties-body">
@@ -144,7 +156,10 @@ import { StatusBadge } from '../../shared/status-badge';
                 placeholder="Give people useful context"
               ></textarea></label
             ><label
-              >Field type<select [(ngModel)]="field.type">
+              >Field type<select
+                [(ngModel)]="field.type"
+                (ngModelChange)="changeType(field, $event)"
+              >
                 <option value="TEXT">Text</option>
                 <option value="NUMBER">Number</option>
                 <option value="DROPDOWN">Dropdown</option>
@@ -164,6 +179,8 @@ import { StatusBadge } from '../../shared/status-badge';
                     ><input [(ngModel)]="field.options[i]" /><button
                       class="icon-button"
                       (click)="field.options.splice(i, 1)"
+                      [disabled]="field.options.length === 1"
+                      [attr.aria-label]="'Remove option ' + (i + 1)"
                     >
                       ×
                     </button>
@@ -217,6 +234,8 @@ import { StatusBadge } from '../../shared/status-badge';
           role="dialog"
           aria-modal="true"
           aria-labelledby="archive-title"
+          cdkTrapFocus
+          [cdkTrapFocusAutoCapture]="true"
           (click)="$event.stopPropagation()"
         >
           <span class="modal__mark">!</span>
@@ -241,7 +260,11 @@ import { StatusBadge } from '../../shared/status-badge';
 export class FormStudioComponent {
   private api = inject(ApiService);
   private toasts = inject(ToastService);
+  private route = inject(ActivatedRoute);
+  private baseline = '';
   forms = signal<FormDefinition[]>([]);
+  loadingForms = signal(true);
+  formsError = signal('');
   selectedForm = signal<FormDefinition | null>(null);
   selectedIndex = signal(-1);
   saving = signal(false);
@@ -251,29 +274,46 @@ export class FormStudioComponent {
   description = '';
   fields: FieldDefinition[] = [];
   constructor() {
+    this.captureBaseline();
+    if (this.route.snapshot.queryParamMap.get('new') === 'true') this.newForm(false);
     this.refresh();
   }
   activeField() {
     return this.fields[this.selectedIndex()] ?? null;
   }
   refresh() {
-    this.api.forms().subscribe((x) => this.forms.set(x));
+    this.loadingForms.set(true);
+    this.formsError.set('');
+    this.api.forms().subscribe({
+      next: (x) => {
+        this.forms.set(x);
+        this.loadingForms.set(false);
+      },
+      error: () => {
+        this.loadingForms.set(false);
+        this.formsError.set('Could not load forms.');
+      },
+    });
   }
-  newForm() {
+  newForm(confirmDiscard = true) {
+    if (confirmDiscard && !this.confirmDiscard()) return;
     this.selectedForm.set(null);
     this.title = 'New intake form';
     this.description = '';
     this.fields = [];
     this.selectedIndex.set(-1);
     this.message.set('New draft');
+    this.captureBaseline();
   }
-  load(form: FormDefinition) {
+  load(form: FormDefinition, confirmDiscard = true) {
+    if (confirmDiscard && this.selectedForm()?.id !== form.id && !this.confirmDiscard()) return;
     this.selectedForm.set(form);
     this.title = form.title;
     this.description = form.description ?? '';
     this.fields = form.fields.map((f) => ({ ...f, options: [...f.options] }));
     this.selectedIndex.set(this.fields.length ? 0 : -1);
     this.message.set(form.status === 'PUBLISHED' ? 'Published version' : 'Draft');
+    this.captureBaseline();
   }
   add(type: FieldType) {
     const index = this.fields.length + 1;
@@ -303,6 +343,10 @@ export class FormStudioComponent {
           .replace(/[^a-z0-9]+/g, '_')
           .replace(/^_|_$/g, '') || field.key;
   }
+  changeType(field: FieldDefinition, type: FieldType) {
+    field.type = type;
+    if (type === 'DROPDOWN' && !field.options.length) field.options = ['Option one', 'Option two'];
+  }
   body() {
     return {
       title: this.title.trim(),
@@ -318,10 +362,7 @@ export class FormStudioComponent {
     };
   }
   save() {
-    if (!this.title.trim() || !this.fields.length) {
-      this.message.set('Add a title and at least one field');
-      return;
-    }
+    if (!this.validateForm()) return;
     this.saving.set(true);
     const creating = !this.selectedForm();
     const request = this.selectedForm()
@@ -329,7 +370,7 @@ export class FormStudioComponent {
       : this.api.createForm(this.body());
     request.subscribe({
       next: (f) => {
-        this.selectedForm.set(f);
+        this.load(f, false);
         this.saving.set(false);
         this.message.set('Draft saved');
         this.toasts.success(
@@ -347,10 +388,11 @@ export class FormStudioComponent {
   publish() {
     const selected = this.selectedForm();
     if (!selected) return;
+    if (!this.validateForm()) return;
     const proceed = () =>
       this.api.publishForm(selected.id).subscribe({
         next: (f) => {
-          this.load(f);
+          this.load(f, false);
           this.saving.set(false);
           this.message.set('Published');
           this.toasts.success('Form published', `${f.title} is now available to requesters.`);
@@ -382,10 +424,49 @@ export class FormStudioComponent {
           'Form archived',
           `${selected.title} is no longer available for new requests.`,
         );
-        this.newForm();
+        this.newForm(false);
         this.refresh();
       },
       error: () => this.saving.set(false),
     });
+  }
+  hasUnsavedChanges() {
+    return this.baseline !== this.snapshot();
+  }
+  canDeactivate() {
+    return this.confirmDiscard();
+  }
+  private confirmDiscard() {
+    return (
+      !this.hasUnsavedChanges() ||
+      window.confirm('Discard your unsaved form changes? This action cannot be undone.')
+    );
+  }
+  private snapshot() {
+    return JSON.stringify(this.body());
+  }
+  private captureBaseline() {
+    this.baseline = this.snapshot();
+  }
+  private validateForm() {
+    let detail = '';
+    if (!this.title.trim() || !this.fields.length) detail = 'Add a title and at least one field.';
+    else if (this.fields.some((field) => !field.label.trim()))
+      detail = 'Give every field a clear label.';
+    else if (
+      this.fields.some(
+        (field) =>
+          field.type === 'DROPDOWN' && !field.options.some((option) => option.trim().length > 0),
+      )
+    )
+      detail = 'Dropdown fields need at least one option.';
+    if (!detail) return true;
+    this.message.set(detail);
+    this.toasts.error('Form is incomplete', detail);
+    return false;
+  }
+  @HostListener('document:keydown.escape')
+  closeArchive() {
+    if (this.archiveOpen() && !this.saving()) this.archiveOpen.set(false);
   }
 }

@@ -21,10 +21,18 @@ export class AuthService {
     );
   }
   logout() {
+    void this.router.navigateByUrl('/login').then((navigated) => {
+      if (navigated) this.clearSession();
+    });
+  }
+  expireSession() {
+    this.clearSession();
+    window.location.assign('/login');
+  }
+  private clearSession() {
     sessionStorage.removeItem('intakeflow_token');
     sessionStorage.removeItem('intakeflow_user');
     this.user.set(null);
-    void this.router.navigateByUrl('/login');
   }
   private readUser(): User | null {
     try {

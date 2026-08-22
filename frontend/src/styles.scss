@@ -727,6 +727,9 @@ em {
   gap: 16px;
   margin-bottom: 22px;
 }
+.metrics.metrics--three {
+  grid-template-columns: repeat(3, 1fr);
+}
 .metrics article {
   background: #fff;
   border: 1px solid var(--line);
@@ -1187,25 +1190,18 @@ em {
 .properties {
   border-left: 1px solid var(--line);
 }
-.properties-tabs {
+.properties-heading {
   height: 57px;
   background: #fff;
   border-bottom: 1px solid var(--line);
   display: flex;
-  padding: 0 16px;
-  gap: 18px;
+  align-items: center;
+  padding: 0 20px;
 }
-.properties-tabs button {
-  border: 0;
-  border-bottom: 2px solid transparent;
-  background: transparent;
+.properties-heading strong {
   font-size: 0.72rem;
-  font-weight: 750;
-  color: var(--muted);
-}
-.properties-tabs button.active {
-  border-color: var(--accent);
-  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 .properties-body {
   padding: 20px;
@@ -1474,6 +1470,48 @@ em {
 .form-actions small {
   font-size: 0.68rem;
   color: var(--muted);
+}
+.request-review {
+  padding: 28px;
+}
+.page-state {
+  padding: 32px;
+  text-align: center;
+}
+.page-state h2,
+.page-state h3 {
+  margin: 0 0 6px;
+}
+.page-state p {
+  margin: 0 auto 18px;
+  color: var(--muted);
+  max-width: 520px;
+}
+.page-state--embedded {
+  border: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+.list-loading {
+  min-height: 120px;
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.form-gallery > .list-loading,
+.form-gallery > .page-state {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.compact-error {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  color: var(--danger);
+  font-size: 0.72rem;
 }
 .header-stat {
   background: #fff;
@@ -1924,11 +1962,11 @@ em {
   cursor: pointer;
 }
 :where(
-  select,
-  input[type='checkbox'],
-  input[type='radio'],
-  input[type='date'],
-  input[type='file']
+  select:not(:disabled),
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  input[type='date']:not(:disabled),
+  input[type='file']:not(:disabled)
 ) {
   cursor: pointer;
 }
@@ -1939,8 +1977,12 @@ em {
 :where(a[href], button:not(:disabled), [role='button']:not([aria-disabled='true'])):active {
   transform: translateY(1px);
 }
-:where(button:disabled, [aria-disabled='true']) {
-  cursor: not-allowed;
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled,
+[aria-disabled='true'] {
+  cursor: not-allowed !important;
   opacity: 0.52;
 }
 :where(input:not([type='checkbox']):not([type='radio']), textarea, select):focus {

@@ -191,6 +191,18 @@ const draft = await expectStatus("requester saves incomplete draft", 200, () =>
     body: { answers: { company: "Incomplete Co" } },
   }),
 );
+await expectStatus("reviewer cannot open an unsubmitted draft", 403, () =>
+  request(`/api/v1/submissions/${draft.id}`, { token: reviewer.token }),
+);
+const reviewerAllBeforeSubmit = await expectStatus(
+  "reviewer all queue excludes unsubmitted drafts",
+  200,
+  () => request("/api/v1/submissions?page=0&size=50", { token: reviewer.token }),
+);
+check(
+  !reviewerAllBeforeSubmit.content.some((item) => item.id === draft.id),
+  "Reviewer queue exposed an unsubmitted draft",
+);
 await expectStatus("incomplete draft cannot be submitted", 400, () =>
   request(`/api/v1/submissions/${draft.id}/submit`, {
     token: requester.token,
@@ -235,6 +247,18 @@ const submitted = await expectStatus(
       token: requester.token,
       method: "POST",
     }),
+);
+const searchedReviewPage = await expectStatus(
+  "reviewer searches the full queue on the server",
+  200,
+  () =>
+    request(`/api/v1/submissions?status=SUBMITTED&query=${suffix}&page=0&size=10`, {
+      token: reviewer.token,
+    }),
+);
+check(
+  searchedReviewPage.content.some((item) => item.id === submitted.id),
+  "Server-side review search did not return the submitted request",
 );
 await expectStatus("submitted request cannot be edited", 409, () =>
   request(`/api/v1/submissions/${submitted.id}`, {
