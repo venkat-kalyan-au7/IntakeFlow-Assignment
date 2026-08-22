@@ -1,3 +1,53 @@
 package com.intakeflow.service;
-import com.intakeflow.api.ApiModels.*;import com.intakeflow.repository.AppUserRepository;import org.springframework.beans.factory.annotation.Value;import org.springframework.security.authentication.*;import org.springframework.security.oauth2.jose.jws.MacAlgorithm;import org.springframework.security.oauth2.jwt.*;import org.springframework.stereotype.Service;import java.time.*;import static com.intakeflow.api.ApiMapper.user;
-@Service public class AuthService{private final AuthenticationManager auth;private final AppUserRepository users;private final JwtEncoder encoder;private final String issuer;private final long ttl;public AuthService(AuthenticationManager auth,AppUserRepository users,JwtEncoder encoder,@Value("${app.jwt.issuer}")String issuer,@Value("${app.jwt.ttl-minutes}")long ttl){this.auth=auth;this.users=users;this.encoder=encoder;this.issuer=issuer;this.ttl=ttl;}public AuthResponse login(LoginRequest request){auth.authenticate(new UsernamePasswordAuthenticationToken(request.email().toLowerCase(),request.password()));var u=users.findByEmailIgnoreCase(request.email()).orElseThrow();var now=Instant.now();var claims=JwtClaimsSet.builder().issuer(issuer).issuedAt(now).expiresAt(now.plus(Duration.ofMinutes(ttl))).subject(u.getEmail()).claim("roles",java.util.List.of(u.getRole().name())).claim("name",u.getDisplayName()).build();var header=JwsHeader.with(MacAlgorithm.HS256).build();return new AuthResponse(encoder.encode(JwtEncoderParameters.from(header,claims)).getTokenValue(),user(u));}}
+
+import static com.intakeflow.api.ApiMapper.user;
+
+import com.intakeflow.api.ApiModels.*;
+import com.intakeflow.repository.AppUserRepository;
+import java.time.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.authentication.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.stereotype.Service;
+
+@Service
+public class AuthService {
+  private final AuthenticationManager auth;
+  private final AppUserRepository users;
+  private final JwtEncoder encoder;
+  private final String issuer;
+  private final long ttl;
+
+  public AuthService(
+      AuthenticationManager auth,
+      AppUserRepository users,
+      JwtEncoder encoder,
+      @Value("${app.jwt.issuer}") String issuer,
+      @Value("${app.jwt.ttl-minutes}") long ttl) {
+    this.auth = auth;
+    this.users = users;
+    this.encoder = encoder;
+    this.issuer = issuer;
+    this.ttl = ttl;
+  }
+
+  public AuthResponse login(LoginRequest request) {
+    auth.authenticate(
+        new UsernamePasswordAuthenticationToken(request.email().toLowerCase(), request.password()));
+    var u = users.findByEmailIgnoreCase(request.email()).orElseThrow();
+    var now = Instant.now();
+    var claims =
+        JwtClaimsSet.builder()
+            .issuer(issuer)
+            .issuedAt(now)
+            .expiresAt(now.plus(Duration.ofMinutes(ttl)))
+            .subject(u.getEmail())
+            .claim("roles", java.util.List.of(u.getRole().name()))
+            .claim("name", u.getDisplayName())
+            .build();
+    var header = JwsHeader.with(MacAlgorithm.HS256).build();
+    return new AuthResponse(
+        encoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue(), user(u));
+  }
+}

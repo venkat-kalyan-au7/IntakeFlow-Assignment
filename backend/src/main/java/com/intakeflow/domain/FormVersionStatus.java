@@ -1,2 +1,7 @@
 package com.intakeflow.domain;
-public enum FormVersionStatus { DRAFT, PUBLISHED, ARCHIVED }
+
+public enum FormVersionStatus {
+  DRAFT,
+  PUBLISHED,
+  ARCHIVED
+}

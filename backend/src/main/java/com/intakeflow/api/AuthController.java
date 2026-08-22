@@ -1,3 +1,30 @@
 package com.intakeflow.api;
-import com.intakeflow.api.ApiModels.*;import com.intakeflow.service.*;import jakarta.validation.Valid;import org.springframework.web.bind.annotation.*;import static com.intakeflow.api.ApiMapper.user;
-@RestController @RequestMapping("/api/v1/auth") public class AuthController{private final AuthService auth;private final CurrentUserService current;public AuthController(AuthService a,CurrentUserService c){auth=a;current=c;}@PostMapping("/login") AuthResponse login(@Valid @RequestBody LoginRequest request){return auth.login(request);}@GetMapping("/me") UserView me(){return user(current.get());}}
+
+import static com.intakeflow.api.ApiMapper.user;
+
+import com.intakeflow.api.ApiModels.*;
+import com.intakeflow.service.*;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/v1/auth")
+public class AuthController {
+  private final AuthService auth;
+  private final CurrentUserService current;
+
+  public AuthController(AuthService a, CurrentUserService c) {
+    auth = a;
+    current = c;
+  }
+
+  @PostMapping("/login")
+  AuthResponse login(@Valid @RequestBody LoginRequest request) {
+    return auth.login(request);
+  }
+
+  @GetMapping("/me")
+  UserView me() {
+    return user(current.get());
+  }
+}

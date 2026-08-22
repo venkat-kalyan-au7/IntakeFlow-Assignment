@@ -1,0 +1,43 @@
+services:
+  database:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: intakeflow
+      MYSQL_USER: intakeflow
+      MYSQL_PASSWORD: intakeflow
+      MYSQL_ROOT_PASSWORD: local-root-password
+    ports:
+      - "3306:3306"
+    volumes:
+      - intakeflow_data:/var/lib/mysql
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-uroot",
+          "-plocal-root-password",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  application:
+    build: .
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://database:3306/intakeflow?serverTimezone=UTC&allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_USERNAME: intakeflow
+      SPRING_DATASOURCE_PASSWORD: intakeflow
+      JWT_SECRET: local-development-secret-change-before-production-32chars
+      APP_DEMO_MODE: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      database:
+        condition: service_healthy
+
+volumes:
+  intakeflow_data:

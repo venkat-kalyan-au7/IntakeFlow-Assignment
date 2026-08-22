@@ -1,2 +1,7 @@
 package com.intakeflow.domain;
-public enum Role { ADMIN, REQUESTER, REVIEWER }
+
+public enum Role {
+  ADMIN,
+  REQUESTER,
+  REVIEWER
+}

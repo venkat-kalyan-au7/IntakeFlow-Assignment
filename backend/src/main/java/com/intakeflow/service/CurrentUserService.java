@@ -1,3 +1,22 @@
 package com.intakeflow.service;
-import com.intakeflow.domain.AppUser;import com.intakeflow.repository.AppUserRepository;import org.springframework.security.core.context.SecurityContextHolder;import org.springframework.stereotype.Service;
-@Service public class CurrentUserService{private final AppUserRepository users;public CurrentUserService(AppUserRepository users){this.users=users;}public AppUser get(){String email=SecurityContextHolder.getContext().getAuthentication().getName();return users.findByEmailIgnoreCase(email).orElseThrow(()->new IllegalStateException("Authenticated user no longer exists"));}}
+
+import com.intakeflow.domain.AppUser;
+import com.intakeflow.repository.AppUserRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+
+@Service
+public class CurrentUserService {
+  private final AppUserRepository users;
+
+  public CurrentUserService(AppUserRepository users) {
+    this.users = users;
+  }
+
+  public AppUser get() {
+    String email = SecurityContextHolder.getContext().getAuthentication().getName();
+    return users
+        .findByEmailIgnoreCase(email)
+        .orElseThrow(() -> new IllegalStateException("Authenticated user no longer exists"));
+  }
+}
