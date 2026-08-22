@@ -58,7 +58,7 @@ import { AuthService } from '../core/auth.service';
           (click)="navOpen.set(true)"
           aria-label="Open navigation"
         >
-          <span></span><span></span><span></span>
+          <span></span>
         </button>
         <div class="topbar__context">
           <span>IntakeFlow workspace</span><strong>{{ roleLabel() }}</strong>

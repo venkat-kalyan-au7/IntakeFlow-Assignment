@@ -636,6 +636,16 @@ em {
   gap: 30px;
   margin-bottom: 28px;
 }
+.page-header > div,
+.dashboard-grid > *,
+.panel__header > div,
+.metrics article,
+.metrics article > div {
+  min-width: 0;
+}
+.page-header h1 {
+  overflow-wrap: break-word;
+}
 .page-header p {
   color: var(--muted);
   margin: 0;
@@ -2002,6 +2012,9 @@ textarea:disabled,
   .metrics {
     grid-template-columns: 1fr 1fr;
   }
+  .metrics.metrics--three {
+    grid-template-columns: 1fr 1fr;
+  }
   .dashboard-grid {
     grid-template-columns: 1fr;
   }
@@ -2211,6 +2224,9 @@ textarea:disabled,
 }
 @media (max-width: 430px) {
   .metrics {
+    grid-template-columns: 1fr;
+  }
+  .metrics.metrics--three {
     grid-template-columns: 1fr;
   }
   .trust-row {
