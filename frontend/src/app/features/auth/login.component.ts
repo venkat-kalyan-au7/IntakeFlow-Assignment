@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
+import { ToastService } from '../../core/feedback.service';
 @Component({
   selector: 'app-login',
   imports: [ReactiveFormsModule],
@@ -77,6 +78,7 @@ export class LoginComponent {
   private fb = inject(FormBuilder);
   private auth = inject(AuthService);
   private router = inject(Router);
+  private toasts = inject(ToastService);
   loading = signal(false);
   error = signal('');
   form = this.fb.nonNullable.group({
@@ -95,7 +97,10 @@ export class LoginComponent {
     this.loading.set(true);
     this.error.set('');
     this.auth.login(this.form.getRawValue().email, this.form.getRawValue().password).subscribe({
-      next: () => void this.router.navigateByUrl('/dashboard'),
+      next: (response) => {
+        this.toasts.success('Welcome back', `Signed in as ${response.user.displayName}.`);
+        void this.router.navigateByUrl('/dashboard');
+      },
       error: (e) => {
         this.loading.set(false);
         this.error.set(

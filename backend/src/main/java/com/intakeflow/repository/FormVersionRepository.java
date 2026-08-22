@@ -11,6 +11,8 @@ public interface FormVersionRepository extends JpaRepository<FormVersion, Long> 
 
   Optional<FormVersion> findFirstByFormIdOrderByVersionNumberDesc(Long formId);
 
+  List<FormVersion> findByFormId(Long formId);
+
   @EntityGraph(attributePaths = {"form", "fields", "fields.options"})
   @Query("select v from FormVersion v where v.id=:id")
   Optional<FormVersion> findDetailedById(@Param("id") Long id);

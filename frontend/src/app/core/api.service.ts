@@ -26,8 +26,11 @@ export class ApiService {
   publishForm(id: number) {
     return this.http.post<FormDefinition>(`${this.base}/forms/${id}/publish`, {});
   }
-  submissions(status?: SubmissionStatus) {
-    let params = new HttpParams().set('size', 50);
+  archiveForm(id: number) {
+    return this.http.delete<void>(`${this.base}/forms/${id}`);
+  }
+  submissions(status?: SubmissionStatus, page = 0, size = 10) {
+    let params = new HttpParams().set('page', page).set('size', size);
     if (status) params = params.set('status', status);
     return this.http.get<PageResponse<Submission>>(`${this.base}/submissions`, { params });
   }

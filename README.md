@@ -73,6 +73,7 @@ The Angular development server runs on port `4200` and calls the API at `http://
 cd backend && ./mvnw test
 cd frontend && npm run build
 docker build -t intakeflow .
+node scripts/test-role-workflows.mjs
 ```
 
 The GitHub Actions workflow runs the same frontend, backend, and container checks for every pull request and push to `main`.

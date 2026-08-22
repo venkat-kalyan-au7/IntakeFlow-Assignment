@@ -1,8 +1,9 @@
 import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { DatePipe } from '@angular/common';
-import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
+import { FormControl, FormGroup, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { ToastService } from '../../core/feedback.service';
 import { AuthService } from '../../core/auth.service';
 import { FormDefinition, Submission } from '../../core/models';
 import { StatusBadge } from '../../shared/status-badge';
@@ -50,6 +51,9 @@ import { StatusBadge } from '../../shared/status-badge';
       @if (message()) {
         <div class="alert alert--success">{{ message() }}</div>
       }
+      @if (error() && !rejectOpen()) {
+        <div class="alert alert--error">{{ error() }}</div>
+      }
       <section class="detail-grid">
         <article class="panel detail-content">
           <div class="detail-section-heading">
@@ -60,7 +64,12 @@ import { StatusBadge } from '../../shared/status-badge';
             <form [formGroup]="editForm" class="edit-grid">
               @for (field of def.fields; track field.key) {
                 <label
-                  ><span>{{ field.label }}</span>
+                  ><span
+                    >{{ field.label }}
+                    @if (field.required) {
+                      <em>*</em>
+                    }
+                  </span>
                   @switch (field.type) {
                     @case ('DROPDOWN') {
                       <select [formControlName]="field.key">
@@ -79,12 +88,27 @@ import { StatusBadge } from '../../shared/status-badge';
                       <input [formControlName]="field.key" />
                     }
                   }
+                  @if (
+                    editForm.controls[field.key].touched && editForm.controls[field.key].invalid
+                  ) {
+                    <span class="field-error visible">{{ field.label }} is required</span>
+                  }
                 </label>
               }
               <div class="edit-actions">
-                <button type="button" class="button button--secondary" (click)="save(false)">
+                <button
+                  type="button"
+                  class="button button--secondary"
+                  (click)="save(false)"
+                  [disabled]="saving()"
+                >
                   Save changes</button
-                ><button type="button" class="button button--primary" (click)="save(true)">
+                ><button
+                  type="button"
+                  class="button button--primary"
+                  (click)="save(true)"
+                  [disabled]="saving()"
+                >
                   Resubmit
                 </button>
               </div>
@@ -162,12 +186,14 @@ export class RequestDetailComponent {
   private api = inject(ApiService);
   private route = inject(ActivatedRoute);
   auth = inject(AuthService);
+  private toasts = inject(ToastService);
   item = signal<Submission | null>(null);
   definition = signal<FormDefinition | null>(null);
   editing = signal(false);
   rejectOpen = signal(false);
   message = signal('');
   error = signal('');
+  saving = signal(false);
   editForm = new FormGroup<Record<string, FormControl<string>>>({});
   private id = Number(this.route.snapshot.paramMap.get('id'));
   constructor() {
@@ -176,11 +202,22 @@ export class RequestDetailComponent {
   load() {
     this.api.submission(this.id).subscribe((item) => {
       this.item.set(item);
-      this.editForm = new FormGroup({});
-      for (const answer of item.answers)
-        this.editForm.addControl(answer.key, new FormControl(answer.value, { nonNullable: true }));
-      if (item.status === 'REJECTED')
-        this.api.formVersion(item.formVersionId).subscribe((d) => this.definition.set(d));
+      if (item.status === 'REJECTED') {
+        this.api.formVersion(item.formVersionId).subscribe((definition) => {
+          this.definition.set(definition);
+          const answers = new Map(item.answers.map((answer) => [answer.key, answer.value]));
+          this.editForm = new FormGroup({});
+          for (const field of definition.fields) {
+            this.editForm.addControl(
+              field.key,
+              new FormControl(answers.get(field.key) ?? '', {
+                nonNullable: true,
+                validators: field.required ? [Validators.required] : [],
+              }),
+            );
+          }
+        });
+      }
     });
   }
   backLink() {
@@ -190,6 +227,7 @@ export class RequestDetailComponent {
     this.api.approve(this.id).subscribe((x) => {
       this.item.set(x);
       this.message.set('Request approved successfully.');
+      this.toasts.success('Request approved', `${x.referenceCode} is complete.`);
     });
   }
   reject(comment: string) {
@@ -202,27 +240,54 @@ export class RequestDetailComponent {
         this.item.set(x);
         this.rejectOpen.set(false);
         this.message.set('The request was returned with clear next steps.');
+        this.toasts.success(
+          'Changes requested',
+          `${x.referenceCode} was returned to the requester.`,
+        );
       },
       error: (e) => this.error.set(e.error?.detail ?? 'Could not update the request.'),
     });
   }
   save(resubmit: boolean) {
+    this.error.set('');
+    if (resubmit && this.editForm.invalid) {
+      this.editForm.markAllAsTouched();
+      this.error.set('Complete the required fields before resubmitting.');
+      return;
+    }
+    this.saving.set(true);
     const values = this.editForm.getRawValue();
     this.api.updateSubmission(this.id, values).subscribe({
       next: (x) => {
         if (!resubmit) {
           this.item.set(x);
           this.editing.set(false);
+          this.saving.set(false);
           this.message.set('Changes saved.');
+          this.toasts.success('Changes saved', `${x.referenceCode} remains ready for editing.`);
           return;
         }
-        this.api.submit(this.id).subscribe((y) => {
-          this.item.set(y);
-          this.editing.set(false);
-          this.message.set('Request resubmitted for review.');
+        this.api.submit(this.id).subscribe({
+          next: (y) => {
+            this.item.set(y);
+            this.editing.set(false);
+            this.saving.set(false);
+            this.message.set('Request resubmitted for review.');
+            this.toasts.success(
+              'Request resubmitted',
+              `${y.referenceCode} is back in the review queue.`,
+            );
+          },
+          error: (e) => {
+            this.saving.set(false);
+            this.error.set(e.error?.detail ?? 'Could not resubmit this request.');
+          },
         });
       },
-      error: (e) => this.error.set(e.error?.detail ?? 'Could not save changes.'),
+      error: (e) => {
+        this.saving.set(false);
+        this.error.set(e.error?.detail ?? 'Could not save changes.');
+      },
     });
   }
   eventLabel(action: string) {

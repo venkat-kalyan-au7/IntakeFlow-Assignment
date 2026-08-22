@@ -4,6 +4,7 @@ import com.intakeflow.api.ApiModels.*;
 import com.intakeflow.service.FormService;
 import jakarta.validation.Valid;
 import java.util.List;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -48,5 +49,12 @@ public class FormController {
   @PreAuthorize("hasRole('ADMIN')")
   FormView publish(@PathVariable Long id) {
     return forms.publish(id);
+  }
+
+  @DeleteMapping("/{id}")
+  @PreAuthorize("hasRole('ADMIN')")
+  @ResponseStatus(HttpStatus.NO_CONTENT)
+  void archive(@PathVariable Long id) {
+    forms.archive(id);
   }
 }

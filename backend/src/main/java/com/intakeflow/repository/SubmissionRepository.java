@@ -28,6 +28,8 @@ public interface SubmissionRepository extends JpaRepository<Submission, Long> {
 
   Page<Submission> findByStatus(SubmissionStatus status, Pageable pageable);
 
+  boolean existsByFormVersionIdAndRequesterId(Long formVersionId, Long requesterId);
+
   long countByStatus(SubmissionStatus status);
 
   long countByRequesterIdAndStatus(Long requesterId, SubmissionStatus status);

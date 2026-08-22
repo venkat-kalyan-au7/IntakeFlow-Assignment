@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormsModule } from '@angular/forms';
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { ApiService } from '../../core/api.service';
+import { ToastService } from '../../core/feedback.service';
 import { FieldDefinition, FieldType, FormDefinition } from '../../core/models';
 import { StatusBadge } from '../../shared/status-badge';
 @Component({
@@ -65,9 +66,18 @@ import { StatusBadge } from '../../shared/status-badge';
             />
           </div>
           <div class="studio-actions">
-            <span class="save-state">{{ message() }}</span
+            <span class="save-state">{{ message() }}</span>
+            @if (selectedForm()) {
+              <button
+                class="button button--secondary button--danger"
+                (click)="archiveOpen.set(true)"
+                [disabled]="saving()"
+              >
+                Archive
+              </button>
+            }
             ><button class="button button--secondary" (click)="save()" [disabled]="saving()">
-              Save draft</button
+              {{ saving() ? 'Saving…' : 'Save draft' }}</button
             ><button
               class="button button--primary"
               (click)="publish()"
@@ -199,14 +209,42 @@ import { StatusBadge } from '../../shared/status-badge';
         }
       </aside>
     </section>
+    @if (archiveOpen() && selectedForm(); as form) {
+      <div class="modal-backdrop" (click)="archiveOpen.set(false)">
+        <section
+          class="modal"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="archive-title"
+          (click)="$event.stopPropagation()"
+        >
+          <span class="modal__mark">!</span>
+          <h2 id="archive-title">Archive form?</h2>
+          <p>
+            {{ form.title }} will no longer accept new requests. Existing submissions and history
+            will remain available.
+          </p>
+          <footer>
+            <button class="button button--secondary" (click)="archiveOpen.set(false)">
+              Cancel
+            </button>
+            <button class="button button--danger-solid" (click)="archive()" [disabled]="saving()">
+              {{ saving() ? 'Archiving…' : 'Archive form' }}
+            </button>
+          </footer>
+        </section>
+      </div>
+    }
   </main>`,
 })
 export class FormStudioComponent {
   private api = inject(ApiService);
+  private toasts = inject(ToastService);
   forms = signal<FormDefinition[]>([]);
   selectedForm = signal<FormDefinition | null>(null);
   selectedIndex = signal(-1);
   saving = signal(false);
+  archiveOpen = signal(false);
   message = signal('');
   title = '';
   description = '';
@@ -284,6 +322,7 @@ export class FormStudioComponent {
       return;
     }
     this.saving.set(true);
+    const creating = !this.selectedForm();
     const request = this.selectedForm()
       ? this.api.updateForm(this.selectedForm()!.id, this.body())
       : this.api.createForm(this.body());
@@ -292,6 +331,10 @@ export class FormStudioComponent {
         this.selectedForm.set(f);
         this.saving.set(false);
         this.message.set('Draft saved');
+        this.toasts.success(
+          creating ? 'Form created' : 'Draft saved',
+          `${f.title} is ready for further editing.`,
+        );
         this.refresh();
       },
       error: (e) => {
@@ -309,6 +352,7 @@ export class FormStudioComponent {
           this.load(f);
           this.saving.set(false);
           this.message.set('Published');
+          this.toasts.success('Form published', `${f.title} is now available to requesters.`);
           this.refresh();
         },
         error: (e) => {
@@ -323,6 +367,24 @@ export class FormStudioComponent {
         this.saving.set(false);
         this.message.set(e.error?.detail ?? 'Could not publish');
       },
+    });
+  }
+  archive() {
+    const selected = this.selectedForm();
+    if (!selected) return;
+    this.saving.set(true);
+    this.api.archiveForm(selected.id).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.archiveOpen.set(false);
+        this.toasts.success(
+          'Form archived',
+          `${selected.title} is no longer available for new requests.`,
+        );
+        this.newForm();
+        this.refresh();
+      },
+      error: () => this.saving.set(false),
     });
   }
 }

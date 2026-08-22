@@ -66,6 +66,27 @@ import { EmptyState } from '../../shared/empty-state';
             >
           }
         </div>
+        @if (totalPages() > 1) {
+          <nav class="pagination" aria-label="My requests pages">
+            <button
+              class="button button--secondary"
+              (click)="changePage(page() - 1)"
+              [disabled]="page() === 0"
+            >
+              Previous
+            </button>
+            <span
+              >Page {{ page() + 1 }} of {{ totalPages() }} · {{ totalElements() }} requests</span
+            >
+            <button
+              class="button button--secondary"
+              (click)="changePage(page() + 1)"
+              [disabled]="page() + 1 >= totalPages()"
+            >
+              Next
+            </button>
+          </nav>
+        }
       } @else {
         <app-empty-state
           title="No requests yet"
@@ -79,8 +100,23 @@ export class RequestsComponent {
   private api = inject(ApiService);
   forms = signal<FormDefinition[]>([]);
   items = signal<Submission[]>([]);
+  page = signal(0);
+  totalPages = signal(0);
+  totalElements = signal(0);
   constructor() {
     this.api.publishedForms().subscribe((x) => this.forms.set(x));
-    this.api.submissions().subscribe((x) => this.items.set(x.content));
+    this.load();
+  }
+  load() {
+    this.api.submissions(undefined, this.page()).subscribe((x) => {
+      this.items.set(x.content);
+      this.totalPages.set(x.totalPages);
+      this.totalElements.set(x.totalElements);
+    });
+  }
+  changePage(page: number) {
+    if (page < 0 || page >= this.totalPages()) return;
+    this.page.set(page);
+    this.load();
   }
 }

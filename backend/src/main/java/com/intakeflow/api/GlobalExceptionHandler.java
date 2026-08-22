@@ -1,5 +1,6 @@
 package com.intakeflow.api;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.*;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -36,5 +37,12 @@ public class GlobalExceptionHandler {
     return ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT,
         "This request changed while you were viewing it. Refresh and try again.");
+  }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  ProblemDetail integrity() {
+    return ProblemDetail.forStatusAndDetail(
+        HttpStatus.CONFLICT,
+        "This change conflicts with existing data. Refresh and try again.");
   }
 }

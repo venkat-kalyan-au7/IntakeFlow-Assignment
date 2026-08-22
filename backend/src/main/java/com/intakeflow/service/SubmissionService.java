@@ -52,6 +52,7 @@ public class SubmissionService {
     if (s.getStatus() != SubmissionStatus.DRAFT && s.getStatus() != SubmissionStatus.REJECTED)
       throw conflict("Only draft or rejected requests can be edited");
     s.getAnswers().clear();
+    submissions.flush();
     writeAnswers(s, input.answers(), false);
     event(s, actor, "CHANGES_SAVED", s.getStatus(), s.getStatus(), null);
     return submission(submissions.save(s));

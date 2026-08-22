@@ -16,11 +16,17 @@ import org.springframework.transaction.annotation.Transactional;
 public class FormService {
   private final FormDefinitionRepository forms;
   private final FormVersionRepository versions;
+  private final SubmissionRepository submissions;
   private final CurrentUserService current;
 
-  public FormService(FormDefinitionRepository f, FormVersionRepository v, CurrentUserService c) {
+  public FormService(
+      FormDefinitionRepository f,
+      FormVersionRepository v,
+      SubmissionRepository s,
+      CurrentUserService c) {
     forms = f;
     versions = v;
+    submissions = s;
     current = c;
   }
 
@@ -43,6 +49,7 @@ public class FormService {
     if (draft.isPresent()) {
       version = draft.get();
       version.getFields().clear();
+      versions.flush();
     } else {
       int next =
           versions
@@ -78,6 +85,15 @@ public class FormService {
     return form(versions.save(draft));
   }
 
+  @Transactional
+  public void archive(Long formId) {
+    if (!forms.existsById(formId)) throw notFound("Form not found");
+    var formVersions = versions.findByFormId(formId);
+    if (formVersions.isEmpty()) throw notFound("Form version not found");
+    formVersions.forEach(v -> v.setStatus(FormVersionStatus.ARCHIVED));
+    versions.saveAll(formVersions);
+  }
+
   @Transactional(readOnly = true)
   public List<FormView> published() {
     return versions.findByStatusOrderByPublishedAtDesc(FormVersionStatus.PUBLISHED).stream()
@@ -105,8 +121,17 @@ public class FormService {
 
   @Transactional(readOnly = true)
   public FormView get(Long id) {
-    return form(
-        versions.findDetailedById(id).orElseThrow(() -> notFound("Form version not found")));
+    var version =
+        versions.findDetailedById(id).orElseThrow(() -> notFound("Form version not found"));
+    var actor = current.get();
+    boolean canRead =
+        actor.getRole() == Role.ADMIN
+            || version.getStatus() == FormVersionStatus.PUBLISHED
+            || (actor.getRole() == Role.REQUESTER
+                && submissions.existsByFormVersionIdAndRequesterId(id, actor.getId()));
+    if (!canRead)
+      throw new ApiException(HttpStatus.FORBIDDEN, "You cannot access this form version");
+    return form(version);
   }
 
   @Transactional(readOnly = true)

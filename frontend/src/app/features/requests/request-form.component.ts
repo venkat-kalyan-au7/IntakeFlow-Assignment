@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/cor
 import { FormBuilder, FormControl, ReactiveFormsModule, Validators } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { ToastService } from '../../core/feedback.service';
 import { FieldDefinition, FormDefinition } from '../../core/models';
 @Component({
   selector: 'app-request-form',
@@ -98,6 +99,7 @@ export class RequestFormComponent {
   private route = inject(ActivatedRoute);
   private router = inject(Router);
   private fb = inject(FormBuilder);
+  private toasts = inject(ToastService);
   form = this.fb.group({});
   formDef = signal<FormDefinition | null>(null);
   saving = signal(false);
@@ -134,11 +136,15 @@ export class RequestFormComponent {
     this.api.createSubmission(def.id, answers).subscribe({
       next: (draft) => {
         if (!final) {
+          this.toasts.success('Draft saved', `${draft.referenceCode} is safely stored.`);
           void this.router.navigate(['/requests', draft.id]);
           return;
         }
         this.api.submit(draft.id).subscribe({
-          next: () => void this.router.navigate(['/requests', draft.id]),
+          next: () => {
+            this.toasts.success('Request submitted', `${draft.referenceCode} was sent for review.`);
+            void this.router.navigate(['/requests', draft.id]);
+          },
           error: (e) => {
             this.saving.set(false);
             this.error.set(e.error?.detail ?? 'Could not submit this request.');

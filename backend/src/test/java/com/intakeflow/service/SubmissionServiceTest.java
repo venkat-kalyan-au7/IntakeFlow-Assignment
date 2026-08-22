@@ -64,6 +64,22 @@ class SubmissionServiceTest {
         .hasMessage("Choose a valid option for Region");
   }
 
+  @Test
+  void acceptsMissingOptionalAnswer() {
+    addField(1L, "notes", "Notes", FieldType.TEXT, false);
+
+    assertThatCode(() -> service.validate(submission, true)).doesNotThrowAnyException();
+  }
+
+  @Test
+  void rejectsInvalidDate() {
+    FormField date = addField(1L, "startDate", "Start date", FieldType.DATE, true);
+    answer(date, "31/12/2026");
+
+    assertThatThrownBy(() -> service.validate(submission, true))
+        .hasMessage("Start date must be a valid date");
+  }
+
   private FormField addField(Long id, String key, String label, FieldType type, boolean required) {
     FormField field = new FormField();
     field.setId(id);
