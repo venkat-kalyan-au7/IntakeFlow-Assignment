@@ -176,7 +176,10 @@ import { StatusBadge } from '../../shared/status-badge';
                 @for (option of field.options; track $index; let i = $index) {
                   <div>
                     <span class="option-order">{{ i + 1 }}</span
-                    ><input [(ngModel)]="field.options[i]" /><button
+                    ><input
+                      [(ngModel)]="field.options[i]"
+                      [attr.aria-label]="'Option ' + (i + 1)"
+                    /><button
                       class="icon-button"
                       (click)="field.options.splice(i, 1)"
                       [disabled]="field.options.length === 1"

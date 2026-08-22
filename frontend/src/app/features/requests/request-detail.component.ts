@@ -55,13 +55,22 @@ import { StatusBadge } from '../../shared/status-badge';
             </button>
           </div>
         }
-        @if (auth.user()?.role === 'REQUESTER' && request.status === 'REJECTED') {
+        @if (
+          auth.user()?.role === 'REQUESTER' &&
+          (request.status === 'DRAFT' || request.status === 'REJECTED')
+        ) {
           <button
             class="button button--primary"
             (click)="toggleEditing()"
             [disabled]="!definition()"
           >
-            {{ editing() ? 'Cancel editing' : 'Update request' }}
+            {{
+              editing()
+                ? 'Cancel editing'
+                : request.status === 'DRAFT'
+                  ? 'Continue draft'
+                  : 'Update request'
+            }}
           </button>
         }
       </header>
@@ -121,14 +130,14 @@ import { StatusBadge } from '../../shared/status-badge';
                   (click)="save(false)"
                   [disabled]="saving()"
                 >
-                  Save changes</button
+                  {{ request.status === 'DRAFT' ? 'Save draft' : 'Save changes' }}</button
                 ><button
                   type="button"
                   class="button button--primary"
                   (click)="save(true)"
                   [disabled]="saving()"
                 >
-                  Resubmit
+                  {{ request.status === 'DRAFT' ? 'Submit request' : 'Resubmit' }}
                 </button>
               </div>
             </form>
@@ -236,7 +245,10 @@ export class RequestDetailComponent {
       next: (item) => {
         this.item.set(item);
         this.loading.set(false);
-        if (item.status === 'REJECTED' && this.auth.user()?.role === 'REQUESTER') {
+        if (
+          (item.status === 'DRAFT' || item.status === 'REJECTED') &&
+          this.auth.user()?.role === 'REQUESTER'
+        ) {
           this.api.formVersion(item.formVersionId).subscribe({
             next: (definition) => {
               this.definition.set(definition);
@@ -342,10 +354,12 @@ export class RequestDetailComponent {
     this.error.set('');
     if (resubmit && this.editForm.invalid) {
       this.editForm.markAllAsTouched();
-      this.error.set('Complete the required fields before resubmitting.');
+      this.error.set('Complete the required fields before submitting.');
       this.toasts.error('Required information missing', 'Complete the highlighted fields.');
       return;
     }
+    const wasRejected = this.item()?.status === 'REJECTED';
+    const wasDraft = this.item()?.status === 'DRAFT';
     this.saving.set(true);
     const values = this.editForm.getRawValue();
     this.api.updateSubmission(this.id, values).subscribe({
@@ -354,7 +368,10 @@ export class RequestDetailComponent {
           this.item.set(x);
           this.editing.set(false);
           this.saving.set(false);
-          this.toasts.success('Changes saved', `${x.referenceCode} remains ready for editing.`);
+          this.toasts.success(
+            wasDraft ? 'Draft saved' : 'Changes saved',
+            `${x.referenceCode} remains ready for editing.`,
+          );
           return;
         }
         this.api.submit(this.id).subscribe({
@@ -363,8 +380,10 @@ export class RequestDetailComponent {
             this.editing.set(false);
             this.saving.set(false);
             this.toasts.success(
-              'Request resubmitted',
-              `${y.referenceCode} is back in the review queue.`,
+              wasRejected ? 'Request resubmitted' : 'Request submitted',
+              wasRejected
+                ? `${y.referenceCode} is back in the review queue.`
+                : `${y.referenceCode} was sent for review.`,
             );
           },
           error: (e) => {
