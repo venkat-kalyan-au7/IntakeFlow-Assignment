@@ -129,7 +129,8 @@ import { StatusBadge } from '../../shared/status-badge';
       </section>
       <aside class="properties">
         <div class="properties-tabs">
-          <button class="active">Properties</button><button>Preview</button>
+          <button class="active">Properties</button
+          ><button disabled title="Use the live preview below">Preview</button>
         </div>
         @if (activeField(); as field) {
           <div class="properties-body">

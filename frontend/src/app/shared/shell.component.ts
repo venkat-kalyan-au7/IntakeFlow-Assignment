@@ -64,7 +64,8 @@ import { AuthService } from '../core/auth.service';
           <span>IntakeFlow workspace</span><strong>{{ roleLabel() }}</strong>
         </div>
         <div class="topbar__right">
-          <button class="icon-button notification" aria-label="Notifications"><span></span></button
+          <button class="icon-button notification" aria-label="No new notifications" disabled>
+            <span></span></button
           ><span class="avatar avatar--small">{{ initials() }}</span>
         </div>
       </header>
