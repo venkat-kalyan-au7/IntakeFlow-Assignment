@@ -64,11 +64,6 @@ import { ToastService } from '../../core/feedback.service';
             {{ loading() ? 'Signing in…' : 'Sign in' }}
           </button>
         </form>
-        <div class="demo-access">
-          <span>Demo workspace</span><button type="button" (click)="use('admin')">Admin</button
-          ><button type="button" (click)="use('requester')">Requester</button
-          ><button type="button" (click)="use('reviewer')">Reviewer</button>
-        </div>
         <p class="security-note"><span class="lock"></span>Secured access · Activity is audited</p>
       </div>
     </section>
@@ -85,10 +80,6 @@ export class LoginComponent {
     email: ['', [Validators.required, Validators.email]],
     password: ['', [Validators.required]],
   });
-  use(role: string) {
-    this.form.setValue({ email: `${role}@intakeflow.demo`, password: 'IntakeFlow@2026' });
-    this.submit();
-  }
   submit() {
     if (this.form.invalid) {
       this.form.markAllAsTouched();

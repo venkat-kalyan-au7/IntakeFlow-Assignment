@@ -391,28 +391,6 @@ em {
   border-color: #8580ee;
   box-shadow: 0 0 0 3px #eeedff;
 }
-.demo-access {
-  margin-top: 25px;
-  padding-top: 20px;
-  border-top: 1px solid var(--line);
-  display: flex;
-  gap: 7px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.demo-access span {
-  color: var(--muted);
-  font-size: 0.78rem;
-  margin-right: auto;
-}
-.demo-access button {
-  border: 1px solid var(--line);
-  border-radius: 7px;
-  background: #fff;
-  padding: 5px 9px;
-  color: #475467;
-  font-size: 0.72rem;
-}
 .security-note {
   font-size: 0.72rem;
   color: var(--faint);

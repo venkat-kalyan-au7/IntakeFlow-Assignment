@@ -20,12 +20,29 @@ management:
   endpoints.web.exposure.include: health,info
   endpoint.health.probes.enabled: true
 springdoc:
-  swagger-ui.path: /api-docs
-  api-docs.path: /api/openapi
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
+    path: /api/openapi
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_UI_ENABLED:true}
+    path: /api-docs
 app:
   jwt:
     issuer: intakeflow
     secret: ${JWT_SECRET:local-development-secret-change-before-production-32chars}
     ttl-minutes: ${JWT_TTL_MINUTES:480}
   demo-mode: ${APP_DEMO_MODE:true}
+  bootstrap:
+    admin:
+      email: ${APP_BOOTSTRAP_ADMIN_EMAIL:}
+      password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:}
+      display-name: ${APP_BOOTSTRAP_ADMIN_NAME:IntakeFlow Administrator}
+    requester:
+      email: ${APP_BOOTSTRAP_REQUESTER_EMAIL:}
+      password: ${APP_BOOTSTRAP_REQUESTER_PASSWORD:}
+      display-name: ${APP_BOOTSTRAP_REQUESTER_NAME:IntakeFlow Requester}
+    reviewer:
+      email: ${APP_BOOTSTRAP_REVIEWER_EMAIL:}
+      password: ${APP_BOOTSTRAP_REVIEWER_PASSWORD:}
+      display-name: ${APP_BOOTSTRAP_REVIEWER_NAME:IntakeFlow Reviewer}
   allowed-origins: ${APP_ALLOWED_ORIGINS:http://localhost:4200}

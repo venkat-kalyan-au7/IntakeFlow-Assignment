@@ -16,6 +16,22 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: APP_DEMO_MODE
-        value: "true"
+        value: "false"
+      - key: SPRINGDOC_API_DOCS_ENABLED
+        value: "false"
+      - key: SPRINGDOC_SWAGGER_UI_ENABLED
+        value: "false"
+      - key: APP_BOOTSTRAP_ADMIN_EMAIL
+        value: admin@intakeflow.app
+      - key: APP_BOOTSTRAP_ADMIN_PASSWORD
+        sync: false
+      - key: APP_BOOTSTRAP_REQUESTER_EMAIL
+        value: requester@intakeflow.app
+      - key: APP_BOOTSTRAP_REQUESTER_PASSWORD
+        sync: false
+      - key: APP_BOOTSTRAP_REVIEWER_EMAIL
+        value: reviewer@intakeflow.app
+      - key: APP_BOOTSTRAP_REVIEWER_PASSWORD
+        sync: false
       - key: DB_POOL_SIZE
         value: "4"

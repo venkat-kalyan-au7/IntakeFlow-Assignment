@@ -88,7 +88,13 @@ The repository includes a Render Blueprint and a single production Docker image 
 
    `jdbc:mysql://HOST:PORT/defaultdb?sslMode=REQUIRED&serverTimezone=UTC`
 
-4. Deploy. Render supplies the application port and generates the JWT secret.
+4. Set strong, unique passwords for `APP_BOOTSTRAP_ADMIN_PASSWORD`,
+   `APP_BOOTSTRAP_REQUESTER_PASSWORD`, and `APP_BOOTSTRAP_REVIEWER_PASSWORD`.
+5. Deploy. Render supplies the application port and generates the JWT secret.
+
+The production Blueprint disables demo data and public OpenAPI/Swagger endpoints. On the first
+startup, the three bootstrap accounts are created only when they do not already exist. Passwords
+are BCrypt-hashed before persistence and remain secret Render environment variables.
 
 Free-tier availability can vary by provider and region. Never commit production credentials; all sensitive settings are injected at runtime.
 
