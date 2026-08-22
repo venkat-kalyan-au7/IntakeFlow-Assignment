@@ -1,0 +1,24 @@
+# Dependencies and build output
+node_modules/
+dist/
+target/
+.angular/
+coverage/
+
+# Local configuration
+.env
+.env.*
+!.env.example
+application-local.yml
+
+# Editors and operating systems
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Workspace-only files
+work/
+outputs/
+*.log
