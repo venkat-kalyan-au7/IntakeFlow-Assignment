@@ -23,8 +23,17 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
             ? 'Check your credentials and try again.'
             : error.status === 403
               ? 'Your account does not have permission for this action.'
+              : error.status === 409
+                ? 'The current state does not allow this change. Reload the latest information and review the available actions.'
               : 'Please try again. If the problem continues, refresh the page.';
-      toasts.error(error.error?.title ?? 'Request failed', detail ?? fallback);
+      const title =
+        error.error?.title ??
+        (error.status === 0
+          ? 'Service unavailable'
+          : error.status === 409
+            ? 'Change could not be saved'
+            : 'Request failed');
+      toasts.error(title, detail ?? fallback);
       return throwError(() => error);
     }),
     finalize(() => loading.end()),

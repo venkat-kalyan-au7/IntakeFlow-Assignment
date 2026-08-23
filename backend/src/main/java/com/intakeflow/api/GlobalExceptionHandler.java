@@ -11,7 +11,14 @@ public class GlobalExceptionHandler {
   @ExceptionHandler(ApiException.class)
   ProblemDetail api(ApiException e) {
     var p = ProblemDetail.forStatusAndDetail(e.getStatus(), e.getMessage());
-    p.setTitle("Request could not be completed");
+    p.setTitle(
+        switch (e.getStatus()) {
+          case BAD_REQUEST -> "Check the information provided";
+          case FORBIDDEN -> "Action not allowed";
+          case NOT_FOUND -> "Information not found";
+          case CONFLICT -> "Action not available in the current state";
+          default -> "Request could not be completed";
+        });
     return p;
   }
 
@@ -34,15 +41,19 @@ public class GlobalExceptionHandler {
 
   @ExceptionHandler(OptimisticLockingFailureException.class)
   ProblemDetail conflict() {
-    return ProblemDetail.forStatusAndDetail(
+    var p = ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT,
-        "This request changed while you were viewing it. Refresh and try again.");
+        "Someone saved a newer version while this page was open. Reload the latest version before making another change.");
+    p.setTitle("A newer version is available");
+    return p;
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)
   ProblemDetail integrity() {
-    return ProblemDetail.forStatusAndDetail(
+    var p = ProblemDetail.forStatusAndDetail(
         HttpStatus.CONFLICT,
-        "This change conflicts with existing data. Refresh and try again.");
+        "The change contains information that must be unique, such as a repeated field identifier. Review the form and try again.");
+    p.setTitle("Duplicate form information");
+    return p;
   }
 }

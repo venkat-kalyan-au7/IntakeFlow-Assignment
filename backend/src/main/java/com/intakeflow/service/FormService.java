@@ -56,7 +56,9 @@ public class FormService {
               .findFirstByFormIdOrderByVersionNumberDesc(formId)
               .map(v -> v.getVersionNumber() + 1)
               .orElse(1);
-      version = build(def, next, input);
+      version = new FormVersion();
+      version.setForm(def);
+      version.setVersionNumber(next);
     }
     version.setTitle(input.title().trim());
     version.setDescription(trim(input.description()));
