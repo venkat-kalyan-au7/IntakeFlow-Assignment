@@ -176,7 +176,97 @@ backend/src/main/resources/db/migration/V1__initial_schema.sql
 
 Hibernate runs with `ddl-auto=validate`; it verifies the entity-to-table mapping but never changes production tables. A migration error therefore stops startup instead of allowing the application and schema to drift.
 
-## Production
+## Design decisions
+
+### Version published forms instead of mutating them
+
+A submission must remain understandable after an administrator changes a form. Each submission therefore points to an immutable published version rather than the current form definition.
+
+### Enforce state transitions in the service layer
+
+Route guards and conditional buttons improve usability, but the API independently checks role, ownership and current state. This prevents stale clients and direct API calls from bypassing workflow rules.
+
+### Keep an append-only workflow history
+
+Submission, rejection, resubmission and approval create `WorkflowEvent` records. Earlier events are retained, including the actor, timestamp, status change and review comment.
+
+### Use explicit migrations
+
+Flyway makes schema changes reviewable and repeatable. Hibernate validation catches mismatches without making implicit production changes.
+
+### Prevent silent concurrent writes
+
+Submission records use optimistic locking. Two users cannot update the same request concurrently and silently overwrite each other.
+
+### Ship one production artifact
+
+Serving Angular from Spring Boot gives the browser one origin and gives operations one versioned artifact to promote or roll back.
+
+The deeper domain and security model is documented in [docs/architecture.md](docs/architecture.md).
+
+## Code architecture and patterns
+
+The codebase follows a layered backend architecture and a feature-oriented frontend structure. Each layer has a narrow responsibility, which keeps workflow rules testable and prevents HTTP, persistence and presentation concerns from leaking into one another.
+
+### Backend layers
+
+```text
+HTTP request
+    |
+    v
+Controller  -> request validation, role boundary and response contract
+    |
+    v
+Service     -> authorization, transactions and workflow rules
+    |
+    v
+Repository  -> database queries and pagination
+    |
+    v
+Domain      -> entities, relationships, status and role types
+```
+
+- **Controllers** expose the REST contract under `/api/v1`. They accept typed request models, apply method-level role checks and delegate business work.
+- **Services** form the application layer. `FormService` and `SubmissionService` own transactions, authorization checks, form versioning and valid workflow transitions.
+- **Repositories** use Spring Data JPA for persistence, focused queries, search and bounded pagination.
+- **Domain entities** model users, form versions, fields, submissions, answers and workflow events. Enums make roles, field types and statuses explicit.
+- **API models and mapping** keep persistence entities out of the public response contract. `ApiMapper` converts domain objects into stable DTOs.
+- **Global exception handling** translates validation, authorization, conflict and not-found failures into consistent HTTP responses.
+
+This is a conventional Controller–Service–Repository pattern with a domain model at its centre. Transaction boundaries live in the service layer, while repositories remain concerned only with data access.
+
+### Frontend structure
+
+```text
+app/
+  core/       authentication, API client, guards, interceptor and feedback state
+  features/   login, dashboard, form studio, requests and review queue
+  shared/     application shell, status badges, empty states and toast viewport
+```
+
+- Angular standalone components are grouped by business feature rather than by technical file type.
+- Route guards handle navigation-level authentication and role visibility.
+- `ApiService` is the single typed boundary for backend calls; components do not construct API URLs independently.
+- The HTTP interceptor attaches JWT credentials, coordinates global loading state and normalizes common API failures.
+- Signals hold local view state such as loading, editing, selection and dialog visibility. Components use `OnPush` change detection to avoid unnecessary rendering.
+- Reactive forms provide field-level validation for login and dynamic request entry.
+- Shared components centralize recurring status, empty-state and notification behaviour without creating a large generic component framework.
+
+### Workflow pattern
+
+The submission lifecycle is implemented as an explicit state machine in the service layer. Commands such as submit, approve, reject and resubmit validate the current state before changing it. Each successful transition writes a `WorkflowEvent`, so the current state and its audit history are updated in the same transaction.
+
+Frontend conditions mirror those rules to keep the interface clear, but backend checks remain authoritative. This allows the UI to evolve without weakening the workflow or security model.
+
+### Cross-cutting concerns
+
+- JWT authentication is stateless; BCrypt protects stored passwords.
+- `@PreAuthorize` establishes role boundaries at API entry points, with ownership checks applied inside services.
+- Flyway owns schema changes and Hibernate validates the resulting schema.
+- Optimistic locking prevents concurrent submission updates from silently overwriting each other.
+- Central loading and toast services give asynchronous operations consistent feedback.
+
+## Production setup
 
 The deployed system uses the same container packaging as the local environment.
 
@@ -219,34 +309,6 @@ The public readiness endpoint is:
 https://intakeflow.onrender.com/actuator/health/readiness
 
 Render and Aiven currently run on free plans. After inactivity, the first request can take a minute or longer while the services resume. Subsequent requests run normally.
-
-## Design decisions
-
-### Version published forms instead of mutating them
-
-A submission must remain understandable after an administrator changes a form. Each submission therefore points to an immutable published version rather than the current form definition.
-
-### Enforce state transitions in the service layer
-
-Route guards and conditional buttons improve usability, but the API independently checks role, ownership and current state. This prevents stale clients and direct API calls from bypassing workflow rules.
-
-### Keep an append-only workflow history
-
-Submission, rejection, resubmission and approval create `WorkflowEvent` records. Earlier events are retained, including the actor, timestamp, status change and review comment.
-
-### Use explicit migrations
-
-Flyway makes schema changes reviewable and repeatable. Hibernate validation catches mismatches without making implicit production changes.
-
-### Prevent silent concurrent writes
-
-Submission records use optimistic locking. Two users cannot update the same request concurrently and silently overwrite each other.
-
-### Ship one production artifact
-
-Serving Angular from Spring Boot gives the browser one origin and gives operations one versioned artifact to promote or roll back.
-
-The deeper domain and security model is documented in [docs/architecture.md](docs/architecture.md).
 
 ## Troubleshooting
 
