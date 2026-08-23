@@ -1,4 +1,12 @@
-import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  HostListener,
+  ViewChild,
+  inject,
+  signal,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CdkDrag, CdkDragDrop, CdkDropList, moveItemInArray } from '@angular/cdk/drag-drop';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
@@ -18,11 +26,20 @@ import { StatusBadge } from '../../shared/status-badge';
         <h1>Form Studio</h1>
         <p>Design a structured intake experience without writing code.</p>
       </div>
-      <button class="button button--primary create-form-button" type="button" (click)="newForm()">
-        <span aria-hidden="true">+</span> Create form
-      </button>
+      @if (newFormActive()) {
+        <div class="creation-state" role="status">
+          <span><strong>New form in progress</strong><small>Complete the three steps below</small></span>
+          <button class="button button--secondary" type="button" (click)="cancelCreation()">
+            Cancel creation
+          </button>
+        </div>
+      } @else {
+        <button class="button button--primary create-form-button" type="button" (click)="newForm()">
+          <span aria-hidden="true">+</span> Create form
+        </button>
+      }
     </header>
-    <section class="studio">
+    <section class="studio" [class.is-creating]="newFormActive()">
       <aside class="studio-library">
         <div class="studio-title">
           <span>Forms</span><small>{{ forms().length }}</small>
@@ -73,11 +90,23 @@ import { StatusBadge } from '../../shared/status-badge';
       <section class="studio-canvas">
         <header>
           <div class="form-identity">
+            @if (newFormActive()) {
+              <ol class="builder-progress" aria-label="Form creation progress">
+                <li [class.is-current]="!title.trim()" [class.is-complete]="!!title.trim()">
+                  <span>1</span> Details
+                </li>
+                <li [class.is-current]="!!title.trim() && !fields.length" [class.is-complete]="fields.length > 0">
+                  <span>2</span> Fields
+                </li>
+                <li [class.is-current]="!!title.trim() && fields.length > 0"><span>3</span> Save</li>
+              </ol>
+            }
             <div class="form-mode" [class.form-mode--published]="isPublished()">
               <strong>{{ modeTitle() }}</strong>
               <span>{{ modeDescription() }}</span>
             </div>
             <input
+              #formTitle
               class="title-input"
               [(ngModel)]="title"
               aria-label="Form title"
@@ -91,7 +120,7 @@ import { StatusBadge } from '../../shared/status-badge';
               [readOnly]="!canEdit()"
             />
           </div>
-          <div class="studio-actions">
+          <div class="studio-actions studio-actions--desktop">
             <span class="save-state">{{ message() }}</span>
             @if (isPublished()) {
               <button
@@ -105,7 +134,7 @@ import { StatusBadge } from '../../shared/status-badge';
               <button class="button button--primary" type="button" (click)="createRevision()" [disabled]="saving()">
                 {{ saving() ? 'Creating draft…' : 'Create editable draft' }}
               </button>
-            } @else {
+            } @else if (canEdit()) {
               @if (selectedForm()) {
                 <button
                   class="button button--secondary button--danger"
@@ -129,6 +158,26 @@ import { StatusBadge } from '../../shared/status-badge';
             }
           </div>
         </header>
+        @if (newFormActive()) {
+          <section class="mobile-builder-tools" aria-labelledby="mobile-field-library-title">
+            <div>
+              <span class="step-label">Step 2</span>
+              <h2 id="mobile-field-library-title">Add fields</h2>
+              <p>Choose what information this form should collect.</p>
+            </div>
+            <div class="field-palette">
+              <button type="button" (click)="add('TEXT')">
+                <span class="palette-icon">Aa</span><span>Text</span></button
+              ><button type="button" (click)="add('NUMBER')">
+                <span class="palette-icon">#</span><span>Number</span></button
+              ><button type="button" (click)="add('DROPDOWN')">
+                <span class="palette-icon">⌄</span><span>Dropdown</span></button
+              ><button type="button" (click)="add('DATE')">
+                <span class="palette-icon calendar-icon"></span><span>Date</span>
+              </button>
+            </div>
+          </section>
+        }
         <div class="canvas-label">
           <span>Form structure</span><small>Drag fields to reorder</small>
         </div>
@@ -174,6 +223,17 @@ import { StatusBadge } from '../../shared/status-badge';
             </div>
           }
         </div>
+        @if (newFormActive()) {
+          <div class="studio-actions studio-actions--mobile">
+            <span class="save-state">{{ message() }}</span>
+            <button class="button button--secondary" type="button" (click)="cancelCreation()" [disabled]="saving()">
+              Cancel
+            </button>
+            <button class="button button--primary" type="button" (click)="save()" [disabled]="saving()">
+              {{ saving() ? 'Saving…' : 'Save draft' }}
+            </button>
+          </div>
+        }
       </section>
       <aside class="properties" [class.is-readonly]="!canEdit()">
         <div class="properties-heading">
@@ -305,6 +365,7 @@ import { StatusBadge } from '../../shared/status-badge';
   </main>`,
 })
 export class FormStudioComponent {
+  @ViewChild('formTitle') private formTitle?: ElementRef<HTMLInputElement>;
   private api = inject(ApiService);
   private toasts = inject(ToastService);
   private route = inject(ActivatedRoute);
@@ -330,21 +391,24 @@ export class FormStudioComponent {
     return this.fields[this.selectedIndex()] ?? null;
   }
   canEdit() {
-    return !this.selectedForm() || this.selectedForm()?.status === 'DRAFT';
+    return this.newFormActive() || this.selectedForm()?.status === 'DRAFT';
   }
   isPublished() {
     return this.selectedForm()?.status === 'PUBLISHED';
   }
   modeTitle() {
     const form = this.selectedForm();
-    if (!form) return 'New form · Not saved yet';
+    if (!form) return this.newFormActive() ? 'New form · Not saved yet' : 'No form selected';
     return form.status === 'PUBLISHED'
       ? `Published · Version ${form.version}`
       : `Editable draft · Version ${form.version}`;
   }
   modeDescription() {
     const form = this.selectedForm();
-    if (!form) return 'Add a title and fields, then save the first draft.';
+    if (!form)
+      return this.newFormActive()
+        ? 'Start with the form details, add fields, then save the draft.'
+        : 'Select an existing form or create a new one.';
     return form.status === 'PUBLISHED'
       ? 'This live version is locked to protect existing requests. Create a draft before changing it.'
       : 'Changes stay private until you publish this draft.';
@@ -371,6 +435,27 @@ export class FormStudioComponent {
     if (confirmDiscard && !this.confirmDiscard()) return;
     this.selectedForm.set(null);
     this.newFormActive.set(true);
+    this.title = '';
+    this.description = '';
+    this.fields = [];
+    this.selectedIndex.set(-1);
+    this.message.set('');
+    this.captureBaseline();
+    window.setTimeout(() => {
+      const input = this.formTitle?.nativeElement;
+      input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input?.focus({ preventScroll: true });
+    });
+  }
+  cancelCreation() {
+    if (!this.newFormActive() || !this.confirmDiscard()) return;
+    this.newFormActive.set(false);
+    const firstForm = this.forms()[0];
+    if (firstForm) {
+      this.load(firstForm, false);
+      return;
+    }
+    this.selectedForm.set(null);
     this.title = '';
     this.description = '';
     this.fields = [];
