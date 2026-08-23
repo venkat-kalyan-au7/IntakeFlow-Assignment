@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/auth.service';
 @Component({
@@ -64,7 +64,29 @@ import { AuthService } from '../core/auth.service';
           <span>IntakeFlow workspace</span><strong>{{ roleLabel() }}</strong>
         </div>
         <div class="topbar__right">
-          <span class="avatar avatar--small">{{ initials() }}</span>
+          <button
+            type="button"
+            class="account-button"
+            aria-label="Open account menu"
+            aria-haspopup="menu"
+            [attr.aria-expanded]="accountOpen()"
+            (click)="toggleAccount($event)"
+          >
+            <span class="avatar avatar--small" aria-hidden="true">{{ initials() }}</span>
+            <span class="account-button__chevron" aria-hidden="true"></span>
+          </button>
+          @if (accountOpen()) {
+            <div class="account-menu" role="menu" (click)="$event.stopPropagation()">
+              <div class="account-menu__identity">
+                <strong>{{ auth.user()?.displayName }}</strong>
+                <span>{{ roleLabel() }}</span>
+              </div>
+              <button type="button" role="menuitem" (click)="logout()">
+                <span class="account-menu__logout-icon" aria-hidden="true"></span>
+                Logout
+              </button>
+            </div>
+          }
         </div>
       </header>
       <router-outlet />
@@ -74,6 +96,28 @@ import { AuthService } from '../core/auth.service';
 export class ShellComponent {
   auth = inject(AuthService);
   navOpen = signal(false);
+  accountOpen = signal(false);
+
+  toggleAccount(event: MouseEvent) {
+    event.stopPropagation();
+    this.accountOpen.update((open) => !open);
+  }
+
+  logout() {
+    this.accountOpen.set(false);
+    this.auth.logout();
+  }
+
+  @HostListener('document:click')
+  closeAccountMenu() {
+    this.accountOpen.set(false);
+  }
+
+  @HostListener('document:keydown.escape')
+  closeAccountMenuOnEscape() {
+    this.accountOpen.set(false);
+  }
+
   initials() {
     return (
       this.auth

@@ -587,6 +587,117 @@ em {
   display: flex;
   align-items: center;
   gap: 12px;
+  position: relative;
+}
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.16s ease,
+    border-color 0.16s ease,
+    box-shadow 0.16s ease;
+}
+.account-button:hover,
+.account-button[aria-expanded='true'] {
+  background: var(--accent-soft);
+  border-color: #d9dcff;
+}
+.account-button:focus-visible {
+  outline: 3px solid rgba(79, 70, 229, 0.2);
+  outline-offset: 2px;
+}
+.account-button__chevron {
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+}
+.account-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: min(230px, calc(100vw - 28px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.16);
+  z-index: 30;
+}
+.account-menu__identity {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 8px 10px 11px;
+  border-bottom: 1px solid var(--line);
+}
+.account-menu__identity strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-menu__identity span {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.account-menu > button {
+  width: 100%;
+  margin-top: 6px;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.76rem;
+  font-weight: 750;
+  text-align: left;
+}
+.account-menu > button:hover,
+.account-menu > button:focus-visible {
+  background: var(--danger-soft);
+}
+.account-menu__logout-icon {
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid currentColor;
+  border-right: 0;
+  border-radius: 3px 0 0 3px;
+  position: relative;
+}
+.account-menu__logout-icon:before,
+.account-menu__logout-icon:after {
+  content: '';
+  position: absolute;
+}
+.account-menu__logout-icon:before {
+  width: 8px;
+  height: 1.5px;
+  top: 5px;
+  left: 6px;
+  background: currentColor;
+}
+.account-menu__logout-icon:after {
+  width: 5px;
+  height: 5px;
+  top: 3px;
+  left: 9px;
+  border-top: 1.5px solid currentColor;
+  border-right: 1.5px solid currentColor;
+  transform: rotate(45deg);
 }
 .notification span {
   width: 14px;
