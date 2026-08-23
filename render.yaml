@@ -35,3 +35,5 @@ services:
         sync: false
       - key: DB_POOL_SIZE
         value: "4"
+      - key: SPRING_MAIN_LAZY_INITIALIZATION
+        value: "true"
