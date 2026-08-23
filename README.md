@@ -2,7 +2,25 @@
 
 IntakeFlow is a role-based request intake and approval system. Administrators publish structured forms, requesters submit work against a specific form version, and reviewers make auditable decisions without losing the history of what was submitted.
 
+[![Production](https://img.shields.io/badge/production-live-16a34a?style=flat-square)](https://intakeflow.onrender.com)
+![Angular](https://img.shields.io/badge/Angular-22.1-dd0031?style=flat-square&logo=angular)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-6db33f?style=flat-square&logo=springboot&logoColor=white)
+![MySQL](https://img.shields.io/badge/MySQL-8.4-4479a1?style=flat-square&logo=mysql&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ed?style=flat-square&logo=docker&logoColor=white)
+
 Live application: **https://intakeflow.onrender.com**
+
+## Contents
+
+- [What the system does](#what-the-system-does)
+- [Run locally](#run-locally)
+- [Role walkthroughs](#role-walkthroughs)
+- [Local runtime](#local-runtime)
+- [Database lifecycle](#database-lifecycle)
+- [Design decisions](#design-decisions)
+- [Code architecture and patterns](#code-architecture-and-patterns)
+- [Production setup](#production-setup)
+- [Troubleshooting](#troubleshooting)
 
 ## What the system does
 
@@ -32,6 +50,13 @@ Reviewer approves --------------------> APPROVED
                             |
                             +---- requester edits and resubmits ----> SUBMITTED
 ```
+
+| Status | Meaning |
+| --- | --- |
+| 🟡 `DRAFT` | Requester can continue editing |
+| 🔵 `SUBMITTED` | Waiting for a reviewer decision |
+| 🟢 `APPROVED` | Review completed successfully |
+| 🔴 `REJECTED` | Requester must review the comment and resubmit |
 
 ## Run locally
 
